@@ -1,0 +1,139 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model competition {
+  id         Int      @id(map: "idx_16403_primary")
+  name       String   @db.VarChar(60)
+  kana       String?  @db.VarChar(60)
+  show_name  String?  @db.VarChar(30)
+  place      String?  @db.VarChar(30)
+  comment    String?
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+  course     course[]
+}
+
+model course {
+  id             Int         @id(map: "idx_16410_primary")
+  type           String      @default("road") @db.VarChar(30)
+  competition_id Int
+  show_name      String?     @db.VarChar(30)
+  time           Int?
+  distance       Float?
+  elevation      Int?
+  comment        String?
+  created_at     DateTime    @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime    @default(now()) @db.Timestamptz(6)
+  competition    competition @relation(fields: [competition_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "course2copmetition")
+  race           race[]
+
+  @@index([competition_id], map: "idx_16410_course2copmetition")
+}
+
+model ekiden_competition {
+  id         Int      @id(map: "idx_16418_primary")
+  name       String?  @db.VarChar(100)
+  kana       String?  @db.VarChar(100)
+  show_name  String?  @db.VarChar(30)
+  place      String?  @db.VarChar(30)
+  comment    String?
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model ekiden_race {
+  id                    Int      @id(map: "idx_16425_primary")
+  ekiden_competition_id Int
+  date                  DateTime @db.Date
+  comment               String?
+  created_at            DateTime @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([date], map: "idx_16425_date")
+}
+
+model ekiden_result {
+  ekiden_team_id  Int
+  kukan           Int
+  member_id       Int
+  time_individual Int?
+  time_gross      Int?
+  comment         String?
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime @default(now()) @db.Timestamptz(6)
+
+  @@id([ekiden_team_id, member_id])
+}
+
+model ekiden_team {
+  id             Int      @id(map: "idx_16439_primary")
+  ekiden_race_id Int
+  team_name      String?  @db.VarChar(30)
+  comment        String?
+  created_at     DateTime @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model member {
+  id          Int      @id(map: "idx_16446_primary")
+  family_name String   @db.VarChar(30)
+  family_kana String?  @db.VarChar(30)
+  first_name  String   @db.VarChar(30)
+  first_kana  String?  @db.VarChar(30)
+  show_name   String   @db.VarChar(30)
+  kana        String?  @db.VarChar(60)
+  year        Int
+  sex         String?  @db.VarChar(30)
+  visible     Boolean  @default(true)
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([year, family_kana, first_kana], map: "idx_16446_year")
+}
+
+model race {
+  id         Int      @id(map: "idx_16452_primary")
+  course_id  Int
+  date       DateTime @db.Date
+  comment    String?
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+  course     course   @relation(fields: [course_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "race2course")
+  result     result[]
+
+  @@index([course_id], map: "idx_16452_race2course")
+}
+
+model race_participant {
+  result_id  Int
+  member_id  Int
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+  result     result   @relation(fields: [result_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "race_participant2result")
+
+  @@id([result_id, member_id])
+  @@index([member_id], map: "idx_16459_race_participant2member")
+  @@index([result_id], map: "idx_16459_race_participant2result")
+}
+
+model result {
+  id               Int                @id(map: "idx_16472_primary")
+  race_id          Int
+  time             Int?
+  distance         Float?
+  comment          String?
+  created_at       DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime           @default(now()) @db.Timestamptz(6)
+  race_participant race_participant[]
+  race             race               @relation(fields: [race_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "result2race")
+
+  @@index([distance], map: "idx_16472_distance")
+  @@index([race_id], map: "idx_16472_result2race")
+  @@index([time], map: "idx_16472_time")
+}
