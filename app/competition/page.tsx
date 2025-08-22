@@ -1,4 +1,3 @@
-import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/client';
 
 // [Use Supabase with Next.js | Supabase Docs](https://supabase.com/docs/guides/getting-started/quickstarts/nextjs)

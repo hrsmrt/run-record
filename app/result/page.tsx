@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/client';
 import { redirect } from 'next/navigation';
 
-export async function search(formData: FormData) {
+async function search(formData: FormData) {
   'use server';
   
   const distance = formData.get('distance');
@@ -18,15 +18,35 @@ export async function search(formData: FormData) {
   redirect(`/result?${query.toString()}`);
 }
 
-export default async function Page({ searchParams }: { searchParams: {racetype?: string, distance?: string , cending?: string, order?: string} }) {
+type SearchParams = {
+  racetype?: string;
+  distance?: string;
+  cending?: string;
+  order?: string;
+};
+
+export default async function Page({ searchParams }: {searchParams: Promise<SearchParams>}) {
   const params = await searchParams;
   const racetype = params.racetype;
   const distance = params.distance;
   const cending = params.cending || "desc";
   const order = params.order || "date"; // date, time, distance
-  let results: any[] = [];
+  let results = [];
 
-  let where: any = {};
+  type Where = {
+    race?: {
+      course?: {
+        type?: string;
+        distance?: {
+          equals?: number;
+          notIn?: number[];
+          lt?: number;
+          gt?: number;
+        }
+      }
+    }
+  }
+  const where: Where = {};
   if (racetype) {
     where.race = {
       ...where.race,
@@ -57,20 +77,26 @@ export default async function Page({ searchParams }: { searchParams: {racetype?:
       ...where.race,
       course: {
         ...where.race?.course,
-        distance: Number(distance)
+        distance: {
+          equals: Number(distance)
+        }
       }}}
-  let orderBy: any = {};
+  type OrderBy = 
+  | { race: { date: 'asc' | 'desc' } }
+  | { time: 'asc' | 'desc' }
+  | { distance: 'asc' | 'desc' };
+  let orderBy: OrderBy = { race: { date: cending as 'asc' | 'desc' } };
   if (order == "date") {
     orderBy.race =  {
-      date: cending
+      date: cending as 'asc' | 'desc'
   }}
   if (order == "time") {
     orderBy =  {
-          time: cending
+          time: cending as 'asc' | 'desc'
   }}
   if (order == "distance") {
     orderBy = {
-      distance: cending
+      distance: cending as 'asc' | 'desc'
     }
   }
   console.log(where)
@@ -86,12 +112,12 @@ export default async function Page({ searchParams }: { searchParams: {racetype?:
     "track", "road", "trail", "time"
   ]
   const distances = [
-    { value: 3, display: "3km" },
-    { value: 5, display: "5km" },
-    { value: 10, display: "10km" },
-    { value: 21.0975, display: "ハーフマラソン" },
-    { value: 42.195, display: "フルマラソン" },
-    { value: 100, display: "100km" },
+    { value: "3", display: "3km" },
+    { value: "5", display: "5km" },
+    { value: "10", display: "10km" },
+    { value: "21.0975", display: "ハーフマラソン" },
+    { value: "42.195", display: "フルマラソン" },
+    { value: "100", display: "100km" },
     { value: "others_under100", display: "その他(100km以下)" },
     { value: "others_over100", display: "その他(100km以上)" }
   ]
@@ -125,9 +151,9 @@ export default async function Page({ searchParams }: { searchParams: {racetype?:
         ))}
       </td>
       <td className="px-4 py-2">
-        {Math.floor(result.time / 3600000)}:
-        {Math.floor(result.time % 3600000 / 60000)}:
-        {Math.floor(result.time % 60000 / 1000)}
+        {result.time != null
+          ? `${Math.floor(result.time / 3600000)}:${Math.floor((result.time % 3600000) / 60000)}:${Math.floor((result.time % 60000) / 1000)}`
+          : ''}
       </td>
       <td className="px-4 py-2">
         {result.race.course.distance}km
