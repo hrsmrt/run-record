@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { timeToMs } from "@/lib/utils"; // 既存の timeToMs 関数を流用
-import { CsvUploader } from "@/components/CsvUploadForm"
 
 export default function AddRecordForm() {
   const [time, setTime] = useState("");
