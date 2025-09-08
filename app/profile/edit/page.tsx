@@ -76,17 +76,17 @@ export default function ProfileEditPage() {
                         onChange={(e) => setProfile({ ...profile, name: e.target.value })}
                         className="border p-2 w-full"
                     />
-
+                    性別:
                     <select
                         value={profile.gender ?? ""}
                         onChange={(e) => setProfile({ ...profile, gender: e.target.value })}
                         className="border p-2 w-full"
                     >
-                        <option value="">選択してください</option>
+                        <option value="">性別</option>
                         <option value="male">男性</option>
                         <option value="female">女性</option>
                     </select>
-
+                    生年:
                     <input
                         type="number"
                         value={profile.birth_year ?? ""}

@@ -57,7 +57,7 @@ export function SignUpForm({
         email,
         password,
         options: {
-          emailRedirectTo: `${redirectUrl}/protected`,
+          emailRedirectTo: `${redirectUrl}/profile/register`,
         },
       });
       if (error) throw error;
