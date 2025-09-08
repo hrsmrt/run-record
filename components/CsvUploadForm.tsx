@@ -3,8 +3,17 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
+type CsvRecord = {
+  time: string;
+  distance: string;
+  race_name: string;
+  race_type: string;
+  date: string;
+  comment: string | null;
+};
+
 export function CsvUploader() {
-  const [csvRecords, setCsvRecords] = useState<any[]>([]);
+  const [csvRecords, setCsvRecords] = useState<CsvRecord[]>([]);
 
   const handleCsvUpload = (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -22,7 +31,7 @@ export function CsvUploader() {
       }
 
     
-      const records = lines.map((line, idx) => {
+const records = lines.map((line, idx) => {
   const values = line.split(",").map(v => v.trim());
   if (values.length < 6) {
     console.warn(`CSV行 ${idx + 1} は列数が足りません`);
@@ -38,7 +47,7 @@ export function CsvUploader() {
     date: date || new Date().toISOString().split("T")[0],
     comment: comment || null,
   };
-}).filter(Boolean); // null を除外
+}).filter((r): r is CsvRecord => r !== null); // null を除外し型を絞る
 
       setCsvRecords(records); // 状態に保持
       alert(`${records.length} 件のデータを読み込みました`);

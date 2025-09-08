@@ -3,6 +3,12 @@
 import { useState } from "react"
 import RecordTable from "@/components/RecordTable"
 
+type RaceType = "all" | "road" | "trail" | "track" | "time";
+type DistanceType = "all" | "5km" | "10km" | "ハーフマラソン" | "フルマラソン" | "100km" | "その他(100km未満)" | "その他(100km以上)";
+type ViewType = "all" | "best";
+type GenderType = "all" | "male" | "female";
+
+
 export default function Home() {
   const [raceType, setRaceType] = useState<"all" | "road" | "trail" | "track" | "time">("all")
   const [distance, setDistance] = useState<"all" | "5km" | "10km" | "ハーフマラソン" | "フルマラソン" | "100km" | "その他(100km未満)" | "その他(100km以上)">("all")
@@ -26,7 +32,7 @@ export default function Home() {
             <label className="mr-2 font-medium">分類:</label>
             <select
               value={raceType}
-              onChange={e => setRaceType(e.target.value as any)}
+              onChange={e => setRaceType(e.target.value as RaceType)}
               className="w-full border px-2 py-1 rounded"
             >
               <option value="all">All</option>
@@ -41,7 +47,7 @@ export default function Home() {
             <label className="mr-2 font-medium">距離:</label>
             <select
               value={distance}
-              onChange={e => setDistance(e.target.value as any)}
+              onChange={e => setDistance(e.target.value as DistanceType)}
               className="w-full border px-2 py-1 rounded"
             >
               <option value="all">All</option>
@@ -59,7 +65,7 @@ export default function Home() {
             <label className="mr-2 font-medium">全て or ベスト</label>
             <select
               value={view}
-              onChange={e => setView(e.target.value as any)}
+              onChange={e => setView(e.target.value as ViewType)}
               className="w-full border px-2 py-1 rounded"
             >
               <option value="all">All</option>
@@ -71,7 +77,7 @@ export default function Home() {
             <label className="mr-2 font-medium">性別</label>
             <select
               value={gender}
-              onChange={e => setGenderFilter(e.target.value as any)}
+              onChange={e => setGenderFilter(e.target.value as GenderType)}
               className="w-full border px-2 py-1 rounded"
             >
               <option value="all">All</option>
