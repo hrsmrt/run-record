@@ -1,9 +1,103 @@
+"use client"
+
+import { useState } from "react"
+import RecordTable from "@/components/RecordTable"
+
 export default function Home() {
+  const [raceType, setRaceType] = useState<"all" | "road" | "trail" | "track" | "time">("all")
+  const [distance, setDistance] = useState<"all" | "5km" | "10km" | "ハーフマラソン" | "フルマラソン" | "100km" | "その他(100km未満)" | "その他(100km以上)">("all")
+  const [view, setView] = useState<"all" | "best">("all")
+  const [gender, setGenderFilter] = useState<"all" | "male" | "female">("all")
+
+  const handleReset = () => {
+    setRaceType("all")
+    setDistance("all")
+    setView("all")
+    setGenderFilter("all")
+  }
+
   return (
-    <div>
-      マラソンやトラックレースの記録サイト
-      <p><a href="./result">結果</a></p>
-      <p><a href="./competition">大会一覧</a></p>
-    </div>
-  );
+    <main className="min-h-screen flex flex-col items-center p-4">
+  <div className="flex-1 w-full flex flex-col gap-4">
+
+    {/* フィルター部分 */}
+    <div className="flex flex-col md:flex-row flex-wrap gap-4 mb-4 w-full">
+      <div className="flex-1 min-w-[120px] md:max-w-[200px]">
+            <label className="mr-2 font-medium">分類:</label>
+            <select
+              value={raceType}
+              onChange={e => setRaceType(e.target.value as any)}
+              className="w-full border px-2 py-1 rounded"
+            >
+              <option value="all">All</option>
+              <option value="road">Road</option>
+              <option value="trail">Trail</option>
+              <option value="track">Track</option>
+              <option value="time">Time</option>
+            </select>
+          </div>
+
+          <div className="flex-1 min-w-[120px]">
+            <label className="mr-2 font-medium">距離:</label>
+            <select
+              value={distance}
+              onChange={e => setDistance(e.target.value as any)}
+              className="w-full border px-2 py-1 rounded"
+            >
+              <option value="all">All</option>
+              <option value="5km">5km</option>
+              <option value="10km">10km</option>
+              <option value="ハーフマラソン">ハーフマラソン</option>
+              <option value="フルマラソン">フルマラソン</option>
+              <option value="100km">100km</option>
+              <option value="その他(100km未満)">その他(100km未満)</option>
+              <option value="その他(100km以上)">その他(100km以上)</option>
+            </select>
+          </div>
+
+          <div className="flex-1 min-w-[120px]">
+            <label className="mr-2 font-medium">全て or ベスト</label>
+            <select
+              value={view}
+              onChange={e => setView(e.target.value as any)}
+              className="w-full border px-2 py-1 rounded"
+            >
+              <option value="all">All</option>
+              <option value="best">Best</option>
+            </select>
+          </div>
+
+          <div className="flex-1 min-w-[120px]">
+            <label className="mr-2 font-medium">性別</label>
+            <select
+              value={gender}
+              onChange={e => setGenderFilter(e.target.value as any)}
+              className="w-full border px-2 py-1 rounded"
+            >
+              <option value="all">All</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+            </select>
+          </div>
+
+          <div className="flex-1 min-w-[120px] flex items-end">
+            <button
+              onClick={handleReset}
+              className="w-full px-3 py-1 bg-gray-500 rounded hover:bg-gray-300 text-white"
+            >
+              リセット
+            </button>
+          </div>
+        </div>
+
+        {/* RecordTableにフィルター値を渡す */}
+        <RecordTable
+          raceType={raceType}
+          distance={distance}
+          view={view}
+          genderFilter={gender}
+        />
+      </div>
+    </main>
+  )
 }

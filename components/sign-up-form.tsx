@@ -16,6 +16,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+// 事前に決めておく共通パスワード（環境変数に置くのが望ましい）
+const INVITE_PASSWORD = process.env.NEXT_PUBLIC_INVITE_PASSWORD || "SecretKey123";
+
 export function SignUpForm({
   className,
   ...props
@@ -23,6 +26,7 @@ export function SignUpForm({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [repeatPassword, setRepeatPassword] = useState("");
+  const [invitePassword, setInvitePassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
@@ -32,6 +36,13 @@ export function SignUpForm({
     const supabase = createClient();
     setIsLoading(true);
     setError(null);
+
+    // 招待用パスワードのチェック
+    if (invitePassword !== INVITE_PASSWORD) {
+      setError("招待用パスワードが違います");
+      setIsLoading(false);
+      return;
+    }
 
     if (password !== repeatPassword) {
       setError("Passwords do not match");
@@ -66,6 +77,18 @@ export function SignUpForm({
         <CardContent>
           <form onSubmit={handleSignUp}>
             <div className="flex flex-col gap-6">
+              {/* 招待用パスワード */}
+              <div className="grid gap-2">
+                <Label htmlFor="invite-password">Invite Password</Label>
+                <Input
+                  id="invite-password"
+                  type="password"
+                  required
+                  value={invitePassword}
+                  onChange={(e) => setInvitePassword(e.target.value)}
+                />
+              </div>
+              {/* メール */}
               <div className="grid gap-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -77,10 +100,9 @@ export function SignUpForm({
                   onChange={(e) => setEmail(e.target.value)}
                 />
               </div>
+              {/* パスワード */}
               <div className="grid gap-2">
-                <div className="flex items-center">
-                  <Label htmlFor="password">Password</Label>
-                </div>
+                <Label htmlFor="password">Password</Label>
                 <Input
                   id="password"
                   type="password"
@@ -89,10 +111,9 @@ export function SignUpForm({
                   onChange={(e) => setPassword(e.target.value)}
                 />
               </div>
+              {/* 確認用 */}
               <div className="grid gap-2">
-                <div className="flex items-center">
-                  <Label htmlFor="repeat-password">Repeat Password</Label>
-                </div>
+                <Label htmlFor="repeat-password">Repeat Password</Label>
                 <Input
                   id="repeat-password"
                   type="password"
