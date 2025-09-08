@@ -135,14 +135,6 @@ export default function AddRecordForm() {
         {message && <p>{message}</p>}
       </form>
 
-      {/* CSVアップロード */}
-      <CsvUploader />
-        
-        <p className="text-xs mt-2 text-gray-500">
-          CSVフォーマット: time,distance,race_name,race_type,yyyy-mm-dd,comment
-        </p>
-        <p>race_type: road, trail, track, time</p>
-
       <p className="max-w-md mx-auto mt-4 text-xs text-gray-500">
         ※ タイム: ネットタイムを推奨。グロスタイムはコメント欄へ
         <br />
