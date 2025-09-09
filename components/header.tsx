@@ -68,7 +68,7 @@ export function Header() {
     <header className="flex flex-row items-center justify-between p-4 bg-white border-b border-gray-300 text-black">
       {/* ロゴ */}
       <div className="text-xl font-bold mb-2 md:mb-0">
-        <Link href="/">マラソン記録ツール provided by H.Murata</Link>
+        <Link href="/">マラソン記録ツール developed by H.Murata</Link>
       </div>
 
       {/* ナビ */}

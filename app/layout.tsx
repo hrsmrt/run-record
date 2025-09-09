@@ -11,7 +11,7 @@ const defaultUrl = process.env.VERCEL_URL
 
 export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
-  title: "H.Murataによるマラソン記録ツール",
+  title: "マラソン記録ツール developed by H.Murata",
   description: "",
 };
 
