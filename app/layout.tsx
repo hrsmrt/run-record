@@ -49,7 +49,8 @@ export default function RootLayout({
           {children}
         </ThemeProvider>
         <footer className="w-full flex flex-col md:flex-row items-center justify-center text-center text-xs py-16 gap-2 md:gap-8 border-t mx-auto">
-          <p>マラソン等大会結果記録ツールです。知人の間での使用を想定しています。お問い合わせは村田(メール: <ObfuscatedEmail />)までお願いします。</p>
+          <div className="space-y-2">
+          <p>マラソン等大会結果記録・共有ツールです。知人の使用を想定しています。ユーザー登録には認証パスワードが必要です。お問い合わせは村田(メール: <ObfuscatedEmail />)までお願いします。</p>
           <p>
             Powered by{" "}
             <a
@@ -61,6 +62,7 @@ export default function RootLayout({
               Supabase
             </a>
           </p>
+          </div>
           <ThemeSwitcher />
         </footer>
       </body>

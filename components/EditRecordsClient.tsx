@@ -139,7 +139,7 @@ export function EditRecordsClient() {
         </select>
 
         <select value={raceTypeFilter} onChange={e => setRaceTypeFilter(e.target.value)} className="px-2 py-1 rounded">
-          <option value="all">分類: 全て</option>
+          <option value="all">種別: 全て</option>
           <option value="road">ロード</option>
           <option value="trail">トレイル</option>
           <option value="track">トラック</option>
@@ -161,10 +161,10 @@ export function EditRecordsClient() {
                 大会 {sortKey==="race_name" ? (sortAsc?"↑":"↓"):""}
               </th>
               <th className="px-2 py-1 cursor-pointer" onClick={() => handleSort("distance")}>
-                距離 {sortKey==="distance" ? (sortAsc?"↑":"↓"):""}
+                距離(km) {sortKey==="distance" ? (sortAsc?"↑":"↓"):""}
               </th>
               <th className="px-2 py-1 cursor-pointer" onClick={() => handleSort("race_type")}>
-                分類 {sortKey==="race_type" ? (sortAsc?"↑":"↓"):""}
+                種別 {sortKey==="race_type" ? (sortAsc?"↑":"↓"):""}
               </th>
               <th className="px-2 py-1 cursor-pointer" onClick={() => handleSort("date")}>
                 日付 {sortKey==="date" ? (sortAsc?"↑":"↓"):""}

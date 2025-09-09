@@ -96,7 +96,7 @@ export default function Page() {
           onChange={(e) => setRaceTypeFilter(e.target.value)}
           className="border px-2 py-1 rounded"
         >
-          <option value="all">分類: 全て</option>
+          <option value="all">種別: 全て</option>
           <option value="road">ロード</option>
           <option value="trail">トレイル</option>
           <option value="track">トラック</option>
@@ -108,7 +108,7 @@ export default function Page() {
         <thead>
           <tr>
             <th className="px-2 py-1 cursor-pointer" onClick={() => handleSort("time_ms")}>
-              時間 {sortKey === "time_ms" ? (sortAsc ? "↑" : "↓") : ""}
+              記録 {sortKey === "time_ms" ? (sortAsc ? "↑" : "↓") : ""}
             </th>
             <th className="px-2 py-1 cursor-pointer" onClick={() => handleSort("race_name")}>
               大会 {sortKey === "race_name" ? (sortAsc ? "↑" : "↓") : ""}
@@ -117,7 +117,7 @@ export default function Page() {
               距離 {sortKey === "distance" ? (sortAsc ? "↑" : "↓") : ""}
             </th>
             <th className="px-2 py-1 cursor-pointer" onClick={() => handleSort("race_type")}>
-              分類 {sortKey === "race_type" ? (sortAsc ? "↑" : "↓") : ""}
+              種別 {sortKey === "race_type" ? (sortAsc ? "↑" : "↓") : ""}
             </th>
             <th className="px-2 py-1 cursor-pointer" onClick={() => handleSort("date")}>
               日付 {sortKey === "date" ? (sortAsc ? "↑" : "↓") : ""}

@@ -29,7 +29,7 @@ export default function Home() {
     {/* フィルター部分 */}
     <div className="flex flex-col md:flex-row flex-wrap gap-4 mb-4 w-full">
       <div className="flex-1 min-w-[120px] md:max-w-[200px]">
-            <label className="mr-2 font-medium">分類:</label>
+            <label className="mr-2 font-medium">種別:</label>
             <select
               value={raceType}
               onChange={e => setRaceType(e.target.value as RaceType)}

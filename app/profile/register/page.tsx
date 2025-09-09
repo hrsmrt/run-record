@@ -68,7 +68,7 @@ export default function ProfileCreatePage() {
             onChange={(e) => setProfile({ ...profile, gender: e.target.value })}
             className="border p-2 w-full"
           >
-            <option value="">性別を選択</option>
+            <option value="">選択</option>
             <option value="male">男性</option>
             <option value="female">女性</option>
           </select>

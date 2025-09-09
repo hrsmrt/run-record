@@ -134,10 +134,10 @@ export default function AddRecordForm() {
         {message && <p>{message}</p>}
       </form>
 
-      <p className="max-w-md mx-auto mt-4 text-xs text-gray-500">
+      <p className="max-w-md mx-auto mt-4 text-black">
         ※ タイム: ネットタイムを推奨。グロスタイムはコメント欄へ
         <br />
-        ※ 距離について: フルマラソンは42.195, ハーフマラソンは21.0975, 100kmは100 など
+        ※ 距離: フルマラソンは42.195, ハーフマラソンは21.0975, 100kmは100 など
       </p>
     </div>
   );

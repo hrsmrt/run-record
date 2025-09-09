@@ -107,7 +107,7 @@ export default function RecordTable({ raceType, distance, view, genderFilter }: 
   return (
     <div className="bg-white w-full text-black p-2">
       <div className="text-gray-500 mb-2 text-sm">
-        ラベルをタップすることで並び替えできます
+        ラベルをクリックすることで並び替えできます
       </div>
       <div className="overflow-x-auto flex justify-center">
         <div className="min-w-[600px]">
@@ -143,7 +143,7 @@ export default function RecordTable({ raceType, distance, view, genderFilter }: 
                   className="px-4 py-2 cursor-pointer"
                   onClick={() => handleSort("race_type")}
                 >
-                  分類 {sortKey === "race_type" ? (sortAsc ? "↑" : "↓") : ""}
+                  種別 {sortKey === "race_type" ? (sortAsc ? "↑" : "↓") : ""}
                 </th>
                 <th
                   className="px-4 py-2 cursor-pointer"
