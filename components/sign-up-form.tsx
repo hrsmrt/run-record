@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react"
+
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -52,6 +54,10 @@ export function SignUpForm({
 
     try {
       const redirectUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+      useEffect(() => {
+        console.log("NEXT_PUBLIC_APP_URL (client):", process.env.NEXT_PUBLIC_APP_URL)
+        console.log("Redirect URL:", redirectUrl); // デバッグ用
+      }, [])
 
       const { error } = await supabase.auth.signUp({
         email,
