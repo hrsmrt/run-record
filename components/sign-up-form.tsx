@@ -33,6 +33,14 @@ export function SignUpForm({
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
+  const redirectUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+
+  // 🔽 ここで一度だけ確認（handleSignUp内では呼ばない）
+  useEffect(() => {
+    console.log("NEXT_PUBLIC_APP_URL (client):", process.env.NEXT_PUBLIC_APP_URL)
+    console.log("Redirect URL:", redirectUrl)
+  }, [redirectUrl]) // 依存に入れる
+
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     const supabase = createClient();
@@ -53,11 +61,6 @@ export function SignUpForm({
     }
 
     try {
-      const redirectUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-      useEffect(() => {
-        console.log("NEXT_PUBLIC_APP_URL (client):", process.env.NEXT_PUBLIC_APP_URL)
-        console.log("Redirect URL:", redirectUrl); // デバッグ用
-      }, [])
 
       const { error } = await supabase.auth.signUp({
         email,
