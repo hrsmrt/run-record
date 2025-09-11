@@ -1,22 +1,21 @@
 // app/auth/callback/page.tsx
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 
 export default function AuthCallback() {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-
-  // 認証リンクに `error` が付いてくるケースへ対応
-  const oauthError = useMemo(() => searchParams?.get("error") ?? null, [searchParams])
-  const oauthErrorDesc = useMemo(() => searchParams?.get("error_description") ?? null, [searchParams])
-  const nextPath = useMemo(() => searchParams?.get("next") ?? undefined, [searchParams])
 
   useEffect(() => {
     const handleAuth = async () => {
+      const currentUrl = new URL(window.location.href)
+      const oauthError = currentUrl.searchParams.get("error")
+      const oauthErrorDesc = currentUrl.searchParams.get("error_description")
+      const nextPath = currentUrl.searchParams.get("next") || undefined
+
       // エラー付きで戻ってきた場合
       if (oauthError) {
         setErrorMessage(oauthErrorDesc || "認証に失敗しました。もう一度お試しください。")
@@ -26,6 +25,15 @@ export default function AuthCallback() {
       const supabase = createClient()
 
       try {
+        // URLに必要な情報がなければ交換しない（PKCE/implicitの不一致回避）
+        const hasCode = !!currentUrl.searchParams.get("code")
+        const hash = window.location.hash || ""
+        const hasTokens = /access_token=/.test(hash) || /refresh_token=/.test(hash)
+        if (!hasCode && !hasTokens) {
+          setErrorMessage("無効なリダイレクトです。リンクの有効期限切れ、またはURLが不完全です。")
+          return
+        }
+
         // URLのクエリ/ハッシュからセッション確立
         const { error } = await supabase.auth.exchangeCodeForSession(window.location.href)
         if (error) {
@@ -44,7 +52,7 @@ export default function AuthCallback() {
     }
 
     handleAuth()
-  }, [router, oauthError, oauthErrorDesc, nextPath])
+  }, [router])
 
   if (errorMessage) {
     return (
