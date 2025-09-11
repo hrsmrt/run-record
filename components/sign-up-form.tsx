@@ -1,7 +1,5 @@
 "use client";
 
-import { useEffect } from "react"
-
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -33,17 +31,6 @@ export function SignUpForm({
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
-  // Use current origin on the client to match where PKCE code_verifier is stored
-  const redirectUrl = typeof window !== "undefined"
-    ? window.location.origin
-    : (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000")
-
-  // 🔽 ここで一度だけ確認（handleSignUp内では呼ばない）
-  useEffect(() => {
-    // For debugging environments; safe to remove later
-    console.log("Auth redirect origin:", redirectUrl)
-  }, [redirectUrl])
-
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     const supabase = createClient();
@@ -64,12 +51,11 @@ export function SignUpForm({
     }
 
     try {
-
       const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: `${redirectUrl}/auth/callback`,
+          emailRedirectTo: `${window.location.origin}/profile/create`,
         },
       });
       if (error) throw error;
