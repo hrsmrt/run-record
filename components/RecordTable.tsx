@@ -138,7 +138,7 @@ export default function RecordTable({ raceType, distance, view, genderFilter }: 
                   className="px-1 md:px-3 py-0 cursor-pointer"
                   onClick={() => handleSort("race_name")}
                 >
-                  レース {sortKey === "race_name" ? (sortAsc ? "↑" : "↓") : ""}
+                  大会 {sortKey === "race_name" ? (sortAsc ? "↑" : "↓") : ""}
                 </th>
                 <th
                   className="px-1 md:px-3 py-0 cursor-pointer"
