@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
+import { formatTime } from "@/lib/utils"
 
 type Record = {
   id: number
@@ -104,45 +105,46 @@ export default function Page() {
         </select>
       </div>
 
-      <table className="w-full table-auto text-left whitespace-nowrap">
+      <table className="w-full table-auto text-left whitespace-nowrap font-mono">
         <thead>
           <tr>
-            <th className="px-1 py-0 cursor-pointer" onClick={() => handleSort("time_ms")}>
+            <th className="px-1 md:px-3 py-0"></th>
+            <th className="px-1 py-0 cursor-pointer text-center" onClick={() => handleSort("time_ms")}>
               記録 {sortKey === "time_ms" ? (sortAsc ? "↑" : "↓") : ""}
             </th>
-            <th className="px-1 py-0 cursor-pointer" onClick={() => handleSort("race_name")}>
+            <th className="px-1 py-0 cursor-pointer text-center" onClick={() => handleSort("comment")}>
+              備考 {sortKey === "comment" ? (sortAsc ? "↑" : "↓") : ""}
+            </th>
+            <th className="px-1 py-0 cursor-pointer text-center" onClick={() => handleSort("race_name")}>
               大会 {sortKey === "race_name" ? (sortAsc ? "↑" : "↓") : ""}
             </th>
-            <th className="px-1 py-0 cursor-pointer" onClick={() => handleSort("distance")}>
-              距離 {sortKey === "distance" ? (sortAsc ? "↑" : "↓") : ""}
+            <th className="px-1 py-0 cursor-pointer text-right" onClick={() => handleSort("distance")}>
+              種目 {sortKey === "distance" ? (sortAsc ? "↑" : "↓") : ""}
             </th>
-            <th className="px-1 py-0 cursor-pointer" onClick={() => handleSort("race_type")}>
-              種別 {sortKey === "race_type" ? (sortAsc ? "↑" : "↓") : ""}
-            </th>
-            <th className="px-1 py-0 cursor-pointer" onClick={() => handleSort("date")}>
+            <th className="px-1 py-0 cursor-pointer text-center" onClick={() => handleSort("date")}>
               日付 {sortKey === "date" ? (sortAsc ? "↑" : "↓") : ""}
-            </th>
-            <th className="px-1 py-0 cursor-pointer" onClick={() => handleSort("comment")}>
-              コメント {sortKey === "comment" ? (sortAsc ? "↑" : "↓") : ""}
             </th>
           </tr>
         </thead>
         <tbody>
-          {sortedRecords.map((record) => (
-            <tr key={record.id}>
-              <td className="px-1 py-0">
-                {Math.floor(record.time_ms / 3600000)}:
-                {Math.floor((record.time_ms % 3600000) / 60000)}:
-                {Math.floor((record.time_ms % 60000) / 1000)}
-              </td>
-              <td className="px-1 py-0">{record.race_name}</td>
-              <td className="px-1 py-0">{record.distance} km</td>
-              <td className="px-1 py-0">{record.race_type}</td>
-              <td className="px-1 py-0">{record.date}</td>
-              <td className="px-1 py-0">{record.comment}</td>
-            </tr>
-          ))}
-        </tbody>
+              {sortedRecords.map((r, index) => (
+                <tr key={r.id}>
+                  <td className="px-1 md:px-3 py-0 text-right">{index + 1}.</td>
+                  <td className="px-1 md:px-3 py-0 text-right">
+                    {formatTime(r.time_ms)}
+                  </td>
+                  <td className="px-1 md:px-3 py-0">{r.comment}</td>
+                  <td className="px-1 md:px-3 py-0 text-right">{r.race_name} </td>
+                  <td className="px-1 md:px-3 py-0 text-right">{Math.abs(r.distance - 42.195) < 0.001
+                    ? "フル"
+                    : Math.abs(r.distance - 21.0975) < 0.001
+                      ? "ハーフ"
+                      : `${r.distance} km`}
+                  </td>
+                  <td className="px-1 md:px-3 py-0">{r.date.substring(0, 4)}/{r.date.substring(5, 7)}/{r.date.substring(8, 10)}</td>
+                </tr>
+              ))}
+            </tbody>
       </table>
     </div>
   )
