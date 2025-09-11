@@ -25,7 +25,7 @@ export default function ProfileEditPage() {
                 .from("profiles")
                 .select("name, gender, birth_year")
                 .eq("user_id", user.id)
-                .single()
+                .maybeSingle()
 
             if (error) {
                 console.error(error)
@@ -46,20 +46,23 @@ export default function ProfileEditPage() {
 
         const { data, error } = await supabase
             .from("profiles")
-            .update({
+            .upsert({
+                user_id: user.id,
                 name: profile.name ?? "",
                 gender: profile.gender ?? "",
                 birth_year: profile.birth_year ?? null,
-            })
-            .eq("user_id", user.id);
+            },
+                { onConflict: "user_id" }  // user_id が被ったら update
+            )
 
         if (error) {
             console.error(error)
-            alert("更新に失敗しました")
-        } else {
-            console.log("Updated profile:", data);
-            router.push("/profile")
+            alert("保存に失敗しました")
+            return
         }
+
+        console.log("Saved profile:", data)
+        router.push("/profile")
     }
 
     if (loading) return <div>Loading...</div>
