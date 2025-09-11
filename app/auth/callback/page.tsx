@@ -14,7 +14,6 @@ export default function AuthCallback() {
       const currentUrl = new URL(window.location.href)
       const oauthError = currentUrl.searchParams.get("error")
       const oauthErrorDesc = currentUrl.searchParams.get("error_description")
-      const nextPath = currentUrl.searchParams.get("next") || undefined
 
       // エラー付きで戻ってきた場合
       if (oauthError) {
