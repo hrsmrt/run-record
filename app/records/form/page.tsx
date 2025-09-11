@@ -58,7 +58,7 @@ export default function AddRecordForm() {
       {/* 単体フォーム */}
       <form
         onSubmit={handleSubmit}
-        className="max-w-md mx-auto p-6 bg-white shadow rounded-lg space-y-4"
+        className="max-w-md mx-auto p-6 bg-white shadow rounded-lg space-y-4 text-black"
       >
         <div className="flex flex-col gap-4">
           <div className="flex items-center">
@@ -68,7 +68,7 @@ export default function AddRecordForm() {
               value={time}
               onChange={(e) => setTime(e.target.value)}
               placeholder="01:23:45"
-              className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2"
+              className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2 bg-white"
             />
           </div>
           <div className="flex items-center">
@@ -77,7 +77,7 @@ export default function AddRecordForm() {
               type="number"
               value={distance}
               onChange={(e) => setDistance(e.target.value)}
-              className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2"
+              className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2 bg-white"
               required
             />
           </div>
@@ -87,7 +87,7 @@ export default function AddRecordForm() {
               type="text"
               value={raceName}
               onChange={(e) => setRaceName(e.target.value)}
-              className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2"
+              className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2 bg-white"
               required
             />
           </div>
@@ -96,7 +96,7 @@ export default function AddRecordForm() {
             <select
               value={raceType}
               onChange={(e) => setRaceType(e.target.value)}
-              className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2"
+              className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2 bg-white"
               required
             >
               <option value="road">ロード</option>
@@ -111,7 +111,9 @@ export default function AddRecordForm() {
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2"
+              className="flex-1 min-w-[140px] rounded-md border border-gray-300 shadow-sm 
+             focus:border-blue-500 focus:ring-blue-500 
+             px-3 py-2 bg-white text-black"
               required
             />
           </div>
@@ -121,7 +123,7 @@ export default function AddRecordForm() {
               type="text"
               value={comment}
               onChange={(e) => setComment(e.target.value)}
-              className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2"
+              className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2 bg-white text-black"
             />
           </div>
         </div>

@@ -15,20 +15,13 @@ export default function Home() {
   const [view, setView] = useState<"all" | "best">("all")
   const [gender, setGenderFilter] = useState<"all" | "male" | "female">("all")
 
-  const handleReset = () => {
-    setRaceType("all")
-    setDistance("all")
-    setView("all")
-    setGenderFilter("all")
-  }
-
   return (
     <main className="min-h-screen flex flex-col items-center p-4">
   <div className="flex-1 w-full flex flex-col gap-4">
 
     {/* フィルター部分 */}
-    <div className="flex flex-col md:flex-row flex-wrap gap-4 mb-4 w-full">
-      <div className="flex-1 min-w-[120px] md:max-w-[200px]">
+    <div className="flex flex-row md:flex-row flex-wrap gap-4 mb-4 w-full text-[12px] lg:text-xl">
+      <div className="flex-1 min-w-[80px] md:max-w-[200px]">
             <label className="mr-2 font-medium">種別:</label>
             <select
               value={raceType}
@@ -43,7 +36,7 @@ export default function Home() {
             </select>
           </div>
 
-          <div className="flex-1 min-w-[120px]">
+          <div className="flex-1 min-w-[80px]">
             <label className="mr-2 font-medium">距離:</label>
             <select
               value={distance}
@@ -61,8 +54,8 @@ export default function Home() {
             </select>
           </div>
 
-          <div className="flex-1 min-w-[120px]">
-            <label className="mr-2 font-medium">全て or ベスト</label>
+          <div className="flex-1 min-w-[80px]">
+            <label className="mr-2 font-medium">全てorベスト</label>
             <select
               value={view}
               onChange={e => setView(e.target.value as ViewType)}
@@ -73,7 +66,7 @@ export default function Home() {
             </select>
           </div>
 
-          <div className="flex-1 min-w-[120px]">
+          <div className="flex-1 min-w-[40px]">
             <label className="mr-2 font-medium">性別</label>
             <select
               value={gender}
@@ -84,15 +77,6 @@ export default function Home() {
               <option value="male">Male</option>
               <option value="female">Female</option>
             </select>
-          </div>
-
-          <div className="flex-1 min-w-[120px] flex items-end">
-            <button
-              onClick={handleReset}
-              className="w-full px-3 py-1 bg-gray-500 rounded hover:bg-gray-300 text-white"
-            >
-              リセット
-            </button>
           </div>
         </div>
 

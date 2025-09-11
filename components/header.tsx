@@ -67,12 +67,12 @@ export function Header() {
   return (
     <header className="flex flex-row items-center justify-between p-4 bg-white border-b border-gray-300 text-black">
       {/* ロゴ */}
-      <div className="text-xl font-bold mb-2 md:mb-0">
+      <div className="text-[12px] lg:text-xl font-bold">
         <Link href="/">マラソン記録ツール developed by H.Murata</Link>
       </div>
 
       {/* ナビ */}
-      <nav className="flex flex-row md:flex-row items-center gap-4 md:gap-6">
+      <nav className="flex flex-row lg:flex-row items-center gap-4 md:gap-6 text-[12px] lg:text-xl">
         <Link href="./">HOME</Link>
 
         {/* 自分の記録プルダウン */}

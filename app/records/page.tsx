@@ -73,13 +73,13 @@ export default function Page() {
   })
 
   return (
-    <div className="max-w-4xl mx-auto p-4">
+    <div className="max-w-4xl mx-auto p-1 bg-white text-black text-[10px] md:text-base overflow-x-auto">
       {/* 絞り込みUI */}
       <div className="flex gap-4 mb-4">
         <select
           value={distanceFilter}
           onChange={(e) => setDistanceFilter(e.target.value)}
-          className="border px-2 py-1 rounded"
+          className="border px-1 py-0 rounded bg-white text-black"
         >
           <option value="all">距離: 全て</option>
           <option value="5">5 km</option>
@@ -94,7 +94,7 @@ export default function Page() {
         <select
           value={raceTypeFilter}
           onChange={(e) => setRaceTypeFilter(e.target.value)}
-          className="border px-2 py-1 rounded"
+          className="border px-1 py-0 rounded bg-white text-black"
         >
           <option value="all">種別: 全て</option>
           <option value="road">ロード</option>
@@ -104,25 +104,25 @@ export default function Page() {
         </select>
       </div>
 
-      <table className="w-full table-auto text-left">
+      <table className="w-full table-auto text-left whitespace-nowrap">
         <thead>
           <tr>
-            <th className="px-2 py-1 cursor-pointer" onClick={() => handleSort("time_ms")}>
+            <th className="px-1 py-0 cursor-pointer" onClick={() => handleSort("time_ms")}>
               記録 {sortKey === "time_ms" ? (sortAsc ? "↑" : "↓") : ""}
             </th>
-            <th className="px-2 py-1 cursor-pointer" onClick={() => handleSort("race_name")}>
+            <th className="px-1 py-0 cursor-pointer" onClick={() => handleSort("race_name")}>
               大会 {sortKey === "race_name" ? (sortAsc ? "↑" : "↓") : ""}
             </th>
-            <th className="px-2 py-1 cursor-pointer" onClick={() => handleSort("distance")}>
+            <th className="px-1 py-0 cursor-pointer" onClick={() => handleSort("distance")}>
               距離 {sortKey === "distance" ? (sortAsc ? "↑" : "↓") : ""}
             </th>
-            <th className="px-2 py-1 cursor-pointer" onClick={() => handleSort("race_type")}>
+            <th className="px-1 py-0 cursor-pointer" onClick={() => handleSort("race_type")}>
               種別 {sortKey === "race_type" ? (sortAsc ? "↑" : "↓") : ""}
             </th>
-            <th className="px-2 py-1 cursor-pointer" onClick={() => handleSort("date")}>
+            <th className="px-1 py-0 cursor-pointer" onClick={() => handleSort("date")}>
               日付 {sortKey === "date" ? (sortAsc ? "↑" : "↓") : ""}
             </th>
-            <th className="px-2 py-1 cursor-pointer" onClick={() => handleSort("comment")}>
+            <th className="px-1 py-0 cursor-pointer" onClick={() => handleSort("comment")}>
               コメント {sortKey === "comment" ? (sortAsc ? "↑" : "↓") : ""}
             </th>
           </tr>
@@ -130,16 +130,16 @@ export default function Page() {
         <tbody>
           {sortedRecords.map((record) => (
             <tr key={record.id}>
-              <td className="px-2 py-1">
+              <td className="px-1 py-0">
                 {Math.floor(record.time_ms / 3600000)}:
                 {Math.floor((record.time_ms % 3600000) / 60000)}:
                 {Math.floor((record.time_ms % 60000) / 1000)}
               </td>
-              <td className="px-2 py-1">{record.race_name}</td>
-              <td className="px-2 py-1">{record.distance} km</td>
-              <td className="px-2 py-1">{record.race_type}</td>
-              <td className="px-2 py-1">{record.date}</td>
-              <td className="px-2 py-1">{record.comment}</td>
+              <td className="px-1 py-0">{record.race_name}</td>
+              <td className="px-1 py-0">{record.distance} km</td>
+              <td className="px-1 py-0">{record.race_type}</td>
+              <td className="px-1 py-0">{record.date}</td>
+              <td className="px-1 py-0">{record.comment}</td>
             </tr>
           ))}
         </tbody>

@@ -105,8 +105,8 @@ export default function RecordTable({ raceType, distance, view, genderFilter }: 
   }
 
   return (
-    <div className="bg-white w-full text-black p-2">
-      <div className="text-gray-500 mb-2 text-sm">
+    <div className="bg-white w-full text-black p-2 text-[10px] md:text-base whitespace-nowrap">
+      <div className="text-gray-500 mb-2 text-[7px] md:text-[10px]">
         ラベルをクリックすることで並び替えできます
       </div>
       <div className="overflow-x-auto flex justify-center">
@@ -114,68 +114,66 @@ export default function RecordTable({ raceType, distance, view, genderFilter }: 
           <table className="table-auto border-collapse w-full text-black bg-white">
             <thead>
               <tr className="bg-white">
-                <th className="px-4 py-2">#</th>
+                <th className="px-1 py-0">#</th>
                 <th
-                  className="px-4 py-2 cursor-pointer"
+                  className="px-1 py-0 cursor-pointer"
                   onClick={() => handleSort("name")}
                 >
                   名前 {sortKey === "name" ? (sortAsc ? "↑" : "↓") : ""}
                 </th>
                 <th
-                  className="px-4 py-2 cursor-pointer"
+                  className="px-1 py-0 cursor-pointer"
                   onClick={() => handleSort("time_ms")}
                 >
                   記録 {sortKey === "time_ms" ? (sortAsc ? "↑" : "↓") : ""}
                 </th>
                 <th
-                  className="px-4 py-2 cursor-pointer"
+                  className="px-1 py-0 cursor-pointer"
                   onClick={() => handleSort("race_name")}
                 >
                   大会 {sortKey === "race_name" ? (sortAsc ? "↑" : "↓") : ""}
                 </th>
                 <th
-                  className="px-4 py-2 cursor-pointer"
+                  className="px-1 py-0 cursor-pointer"
                   onClick={() => handleSort("distance")}
                 >
-                  距離 {sortKey === "distance" ? (sortAsc ? "↑" : "↓") : ""}
+                  種目 {sortKey === "distance" ? (sortAsc ? "↑" : "↓") : ""}
                 </th>
                 <th
-                  className="px-4 py-2 cursor-pointer"
-                  onClick={() => handleSort("race_type")}
-                >
-                  種別 {sortKey === "race_type" ? (sortAsc ? "↑" : "↓") : ""}
-                </th>
-                <th
-                  className="px-4 py-2 cursor-pointer"
+                  className="px-1 py-0 cursor-pointer"
                   onClick={() => handleSort("date")}
                 >
                   日付 {sortKey === "date" ? (sortAsc ? "↑" : "↓") : ""}
                 </th>
                 <th
-                  className="px-4 py-2 cursor-pointer"
+                  className="px-1 py-0 cursor-pointer"
                   onClick={() => handleSort("comment")}
                 >
-                  コメント {sortKey === "comment" ? (sortAsc ? "↑" : "↓") : ""}
+                  備考 {sortKey === "comment" ? (sortAsc ? "↑" : "↓") : ""}
                 </th>
               </tr>
             </thead>
             <tbody>
               {sortedRecords.map((r, index) => (
                 <tr key={r.id}>
-                  <td className="px-4 py-2 text-center">{index + 1}</td>
-                  <td className={`px-4 py-2 ${r.gender === "female" ? "text-red-600" : "text-black"}`}>
+                  <td className="px-1 py-0 text-center">{index + 1}</td>
+                  <td className={`px-1 py-0 ${r.gender === "female" ? "text-red-600" : "text-black"}`}>
                     {r.name}
                   </td>
-                  <td className="px-4 py-2">
+                  <td className="px-1 py-0">
                     {Math.floor(r.time_ms / 3600000)}:
                     {Math.floor((r.time_ms % 3600000) / 60000)}:
                     {Math.floor((r.time_ms % 60000) / 1000)}
                   </td>
-                  <td className="px-4 py-2">{r.race_name}</td>
-                  <td className="px-4 py-2">{r.distance} km</td>
-                  <td className="px-4 py-2">{r.race_type}</td>
-                  <td className="px-4 py-2">{r.date}</td>
-                  <td className="px-4 py-2">{r.comment}</td>
+                  <td className="px-1 py-0">{r.race_name}({r.date.substring(0, 4)})</td>
+                  <td className="px-1 py-0">{Math.abs(r.distance - 42.195) < 0.001
+                    ? "フル"
+                    : Math.abs(r.distance - 21.0975) < 0.001
+                      ? "ハーフ"
+                      : `${r.distance} km`}
+                  </td>
+                  <td className="px-1 py-0">{r.date}</td>
+                  <td className="px-1 py-0">{r.comment}</td>
                 </tr>
               ))}
             </tbody>
