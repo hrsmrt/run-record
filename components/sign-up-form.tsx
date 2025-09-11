@@ -33,13 +33,16 @@ export function SignUpForm({
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
-  const redirectUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+  // Use current origin on the client to match where PKCE code_verifier is stored
+  const redirectUrl = typeof window !== "undefined"
+    ? window.location.origin
+    : (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000")
 
   // 🔽 ここで一度だけ確認（handleSignUp内では呼ばない）
   useEffect(() => {
-    console.log("NEXT_PUBLIC_APP_URL (client):", process.env.NEXT_PUBLIC_APP_URL)
-    console.log("Redirect URL:", redirectUrl)
-  }, [redirectUrl]) // 依存に入れる
+    // For debugging environments; safe to remove later
+    console.log("Auth redirect origin:", redirectUrl)
+  }, [redirectUrl])
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
