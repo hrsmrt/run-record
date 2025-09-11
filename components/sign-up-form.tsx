@@ -66,7 +66,7 @@ export function SignUpForm({
         email,
         password,
         options: {
-          emailRedirectTo: `${redirectUrl}/profile/register`,
+          emailRedirectTo: `${redirectUrl}/auth/callback`,
         },
       });
       if (error) throw error;
