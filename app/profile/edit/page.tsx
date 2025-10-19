@@ -6,13 +6,14 @@ import { useRouter } from "next/navigation"
 
 type Profile = {
     name: string
+    display_name: string
     gender: string
     birth_year: number
 }
 
 export default function ProfileEditPage() {
     const router = useRouter()
-    const [profile, setProfile] = useState<Profile>({ name: "", gender: "", birth_year: 2000 })
+    const [profile, setProfile] = useState<Profile>({ name: "", display_name: "", gender: "", birth_year: 2000 })
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
@@ -23,7 +24,7 @@ export default function ProfileEditPage() {
 
             const { data, error } = await supabase
                 .from("profiles")
-                .select("name, gender, birth_year")
+                .select("name, display_name, gender, birth_year")
                 .eq("user_id", user.id)
                 .maybeSingle()
 
@@ -49,6 +50,7 @@ export default function ProfileEditPage() {
             .upsert({
                 user_id: user.id,
                 name: profile.name ?? "",
+                display_name: profile.display_name ?? "",
                 gender: profile.gender ?? "",
                 birth_year: profile.birth_year ?? null,
             },
@@ -77,6 +79,13 @@ export default function ProfileEditPage() {
                         type="text"
                         value={profile.name ?? ""}
                         onChange={(e) => setProfile({ ...profile, name: e.target.value })}
+                        className="border p-2 w-full"
+                    />
+                    表示名:
+                    <input
+                        type="text"
+                        value={profile.display_name ?? ""}
+                        onChange={(e) => setProfile({ ...profile, display_name: e.target.value })}
                         className="border p-2 w-full"
                     />
                     性別:

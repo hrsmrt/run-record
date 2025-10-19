@@ -6,13 +6,14 @@ import { useRouter } from "next/navigation"
 
 type Profile = {
   name: string
+  display_name: string
   gender: string
   birth_year: number
 }
 
 export default function ProfileCreatePage() {
   const router = useRouter()
-  const [profile, setProfile] = useState<Profile>({ name: "", gender: "", birth_year: 2000 })
+  const [profile, setProfile] = useState<Profile>({ name: "", display_name: "", gender: "", birth_year: 2000 })
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -32,6 +33,7 @@ export default function ProfileCreatePage() {
       .insert({
         user_id: user.id,
         name: profile.name ?? "",
+        display_name: profile.display_name ?? "",
         gender: profile.gender ?? "",
         birth_year: profile.birth_year ?? null,
       })
@@ -60,7 +62,15 @@ export default function ProfileCreatePage() {
             className="border p-2 w-full"
           />
         </label>
-
+        <label>
+          表示名:
+          <input
+            type="text"
+            value={profile.display_name}
+            onChange={(e) => setProfile({ ...profile, display_name: e.target.value })}
+            className="border p-2 w-full"
+          />
+        </label>
         <label>
           性別:
           <select
@@ -73,7 +83,6 @@ export default function ProfileCreatePage() {
             <option value="female">女性</option>
           </select>
         </label>
-
         <label>
           生年:
           <input
@@ -83,7 +92,6 @@ export default function ProfileCreatePage() {
             className="border p-2 w-full"
           />
         </label>
-
         <button
           type="submit"
           disabled={loading}
