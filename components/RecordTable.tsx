@@ -107,47 +107,47 @@ export default function RecordTable({ raceType, distance, view, genderFilter }: 
 
   return (
     <div className="bg-white w-full text-black p-2 text-[8px] md:text-base whitespace-nowrap">
-      <div className="text-gray-500 mb-2 text-[7px] md:text-[10px]">
+      <div className="text-gray-500 mb-2 text-[7px] sm:text-xs md:text-sm">
         ラベルをクリックすることで並び替えできます
       </div>
-      <div className="overflow-x-auto flex justify-center">
-        <div className="min-w-[200px]">
-          <table className="table-auto border-collapse w-full text-black bg-white font-mono">
+      <div className="overflow-x-auto flex justify-start md:justify-center">
+        <div className="min-w-[450px] max-w-[1300px]">
+          <table className="table-fixed border-collapse w-full text-black bg-white font-mono">
             <thead>
               <tr className="bg-white">
-                <th className="px-1 md:px-3 py-0"></th>
+                <th className="px-1 md:px-3 py-0 w-[6%] lg:w-[4%]"></th>
                 <th
-                  className="px-1 md:px-3 py-0 cursor-pointer"
+                  className="px-1 md:px-3 py-0 cursor-pointer w-[6%] lg:w-[4%]" 
                   onClick={() => handleSort("name")}
                 >
                   名前 {sortKey === "name" ? (sortAsc ? "↑" : "↓") : ""}
                 </th>
                 <th
-                  className="px-1 md:px-3 py-0 cursor-pointer"
+                  className="px-1 md:px-3 py-0 cursor-pointer w-[13%] lg:w-[8%]"
                   onClick={() => handleSort("time_ms")}
                 >
                   記録 {sortKey === "time_ms" ? (sortAsc ? "↑" : "↓") : ""}
                 </th>
                 <th
-                  className="px-1 md:px-3 py-0 cursor-pointer"
+                  className="px-1 md:px-3 py-0 cursor-pointer w-[18%]"
                   onClick={() => handleSort("comment")}
                 >
                   備考 {sortKey === "comment" ? (sortAsc ? "↑" : "↓") : ""}
                 </th>
                 <th
-                  className="px-1 md:px-3 py-0 cursor-pointer"
+                  className="px-1 md:px-3 py-0 cursor-pointer w-[29%]"
                   onClick={() => handleSort("race_name")}
                 >
                   大会 {sortKey === "race_name" ? (sortAsc ? "↑" : "↓") : ""}
                 </th>
                 <th
-                  className="px-1 md:px-3 py-0 cursor-pointer"
+                  className="px-1 md:px-3 py-0 cursor-pointer w-[12%] lg:w-[6%]"
                   onClick={() => handleSort("distance")}
                 >
                   種目 {sortKey === "distance" ? (sortAsc ? "↑" : "↓") : ""}
                 </th>
                 <th
-                  className="px-1 md:px-3 py-0 cursor-pointer"
+                  className="px-1 md:px-3 py-0 cursor-pointer w-[16%] lg:w-[8%]"
                   onClick={() => handleSort("date")}
                 >
                   日付 {sortKey === "date" ? (sortAsc ? "↑" : "↓") : ""}
@@ -164,8 +164,8 @@ export default function RecordTable({ raceType, distance, view, genderFilter }: 
                   <td className="px-1 md:px-3 py-0 text-right">
                     {formatTime(r.time_ms)}
                   </td>
-                  <td className="px-1 md:px-3 py-0">{r.comment}</td>
-                  <td className="px-1 md:px-3 py-0 text-right">{r.race_name} </td>
+                  <td className="px-1 md:px-3 py-0 whitespace-normal">{r.comment}</td>
+                  <td className="px-1 md:px-3 py-0 text-right whitespace-normal">{r.race_name} </td>
                   <td className="px-1 md:px-3 py-0 text-right">{Math.abs(r.distance - 42.195) < 0.001
                     ? "フル"
                     : Math.abs(r.distance - 21.0975) < 0.001
