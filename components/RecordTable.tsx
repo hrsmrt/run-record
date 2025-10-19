@@ -154,7 +154,7 @@ export default function RecordTable({ raceType, distance, view, genderFilter }: 
                 </th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-gray-200">
               {sortedRecords.map((r, index) => (
                 <tr key={r.id}>
                   <td className="px-1 md:px-3 py-0 text-right">{index + 1}.</td>
