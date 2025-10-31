@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
+import { Menu } from "lucide-react";
 
 export function Header() {
   const [user, setUser] = useState<{ id: string; email: string } | null>(null);
@@ -55,20 +56,20 @@ export function Header() {
   return (
     <header className="flex flex-row items-center justify-between p-4 bg-white border-b border-gray-300 text-black">
       {/* ロゴ */}
-      <div className="text-[12px] lg:text-xl font-bold">
+      <div className="text-base lg:text-xl font-bold">
         <Link href="/">Runner’s Record</Link>
       </div>
 
       {/* ナビ */}
-      <nav className="flex flex-row lg:flex-row items-center gap-4 md:gap-6 text-[12px] lg:text-xl">
+      <nav className="flex flex-row lg:flex-row items-center gap-4 md:gap-6 text-base lg:text-xl">
 
         {/* 自分の記録プルダウン */}
         { (
           <div className="relative" ref={ref}> {/* ここに ref を付与 */}
             <button
               onClick={() => setOpen(!open)}
-              className="hover:underline focus:outline-none"
-            >&#9776;
+              className="text-black text-3xl hover:opacity-70"
+            ><Menu />
             </button>
 
             {open && (
