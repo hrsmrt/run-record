@@ -50,8 +50,9 @@ export default function SearchPage() {
   return (
     <main className="min-h-screen flex flex-col items-center p-4">
       <div className="flex-1 w-full flex flex-col gap-4">
+        検索ページ
         {/* フィルター部分 */}
-        <div className="flex flex-row md:flex-row flex-wrap gap-4 mb-4 w-full text-[10px] lg:text-lg">
+        <div className="flex flex-col md:flex-row flex-wrap gap-4 mb-4 w-full text-base lg:text-lg">
 
           <div className="flex-1 min-w-[80px] max-w-[200px]">
             <select
