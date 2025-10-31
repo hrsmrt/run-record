@@ -50,7 +50,8 @@ export default function RootLayout({
         </ThemeProvider>
         <footer className="w-full flex flex-col md:flex-row items-center justify-center text-center text-xs py-16 gap-2 md:gap-8 border-t mx-auto">
           <div className="space-y-2">
-          <p>マラソン等大会結果記録・共有ツールです。知人の使用を想定しています。ユーザー登録には認証パスワードが必要です。お問い合わせは村田(メール: <ObfuscatedEmail />)までお願いします。</p>
+          <p>マラソン等大会結果記録・共有ツールです。知人の使用を想定しています。ユーザー登録には認証パスワードが必要です。また、同一大会に参加した知人やサークルOBOGの記録も掲載することがあります。</p>
+          <p>お問い合わせは村田(メール: <ObfuscatedEmail />)までお願いします。</p>
           <p>
             Powered by{" "}
             <a

@@ -4,86 +4,82 @@ import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { formatTime } from "@/lib/utils"
 
-type Record = {
+type RaceRecord = {
   id: number
   name: string
   time_ms: number
   race_name: string
   distance: number
-  race_type: string
   date: string
   gender?: string
   comment?: string
 }
 
 type Props = {
-  raceType: "all" | "road" | "trail" | "track" | "time"
-  distance: "all" | "5km" | "10km" | "ハーフマラソン" | "フルマラソン" | "100km" | "その他(100km未満)" | "その他(100km以上)"
   view: "all" | "best"
   genderFilter: "all" | "male" | "female"
+  distance: string
+  raceType: "all" | "road" | "trail" | "track" | "time"
+  date_min: string
+  date_max: string
+  show_distance?: boolean
+  racenameSearch: string
+  nameSearch: string
+  searchTrigger: number
 }
 
-type SortKey = keyof Record
+type SortKey = keyof RaceRecord
 
-export default function RecordTable({ raceType, distance, view, genderFilter }: Props) {
-  const [records, setRecords] = useState<Record[]>([])
+export default function RecordTable({ view, genderFilter, distance, raceType, date_min, date_max, show_distance, racenameSearch, nameSearch, searchTrigger }: Props) {
+  const [records, setRecords] = useState<RaceRecord[]>([])
   const [sortKey, setSortKey] = useState<SortKey>("date")
   const [sortAsc, setSortAsc] = useState(false)
 
   useEffect(() => {
     const fetchRecords = async () => {
       const supabase = createClient()
-      let query;
-      if (view === "all") {
-        if (distance === "5km") {
-          query = supabase.from("public_5");
-        } else if (distance === "10km") {
-          query = supabase.from("public_10");
-        } else if (distance === "ハーフマラソン") {
-          query = supabase.from("public_half");
-        } else if (distance === "フルマラソン") {
-          query = supabase.from("public_full");
-        } else if (distance === "100km") {
-          query = supabase.from("public_100");
-        } else if (distance === "その他(100km未満)") {
-          query = supabase.from("public_others_under100");
-        } else if (distance === "その他(100km以上)") {
-          query = supabase.from("public_others_over100");
-        } else {
-          query = supabase.from("public_record");
-        }
-      } else {
-        if (distance === "5km") {
-          query = supabase.from("public_5_best");
-        } else if (distance === "10km") {
-          query = supabase.from("public_10_best");
-        } else if (distance === "ハーフマラソン") {
-          query = supabase.from("public_half_best");
-        } else if (distance === "フルマラソン") {
-          query = supabase.from("public_full_best");
-        } else if (distance === "100km") {
-          query = supabase.from("public_100_best");
-        } else {
-          query = supabase.from("public_record_best");
-        }
+      const tableMap: Record<
+        "5km" | "10km" | "half" | "full" | "100km" | "その他(100km未満)" | "その他(100km以上)" | "all",
+        string
+      > = {
+        "5km": view === "all" ? "public_5" : "public_5_best",
+        "10km": view === "all" ? "public_10" : "public_10_best",
+        "half": view === "all" ? "public_half" : "public_half_best",
+        "full": view === "all" ? "public_full" : "public_full_best",
+        "100km": view === "all" ? "public_100" : "public_100_best",
+        "その他(100km未満)": "public_others_under100",
+        "その他(100km以上)": "public_others_over100",
+        "all": view === "all" ? "public_record" : "public_record_best"
+      };
+      const tableName = tableMap[distance as keyof typeof tableMap] || "public_record";
+      let query = supabase.from(tableName).select("*");
+      if (date_min !== "") {
+        query = query.gt("date", date_min)
       }
-      query = query.select("*");
-      // race_type 絞り込み
+      if (date_max !== "") {
+        query = query.lt("date", date_max)
+      }
       if (raceType !== "all") {
         query = query.eq("race_type", raceType)
       }
       if (genderFilter !== "all") {
         query = query.eq("gender", genderFilter)
       }
+      if (racenameSearch !== "") {
+        query = query.ilike("race_name", `%${racenameSearch}%`)
+      }
+      if (nameSearch !== "") {
+        query = query.ilike("name", `%${nameSearch}%`) // 匿名を含む名前のみ
+      }
       const { data, error } = await query;
       if (error) {
-        console.error(error)
+        console.error("Supabase error:", JSON.stringify(error, null, 2))
       } else {
         setRecords(data ?? [])
       }
     }
     fetchRecords()
-  }, [raceType, distance, view, genderFilter])
+  }, [view, distance, genderFilter, raceType, date_min, date_max, racenameSearch, nameSearch, searchTrigger])
 
   const sortedRecords = [...records]
     .sort((a, b) => {
@@ -112,7 +108,7 @@ export default function RecordTable({ raceType, distance, view, genderFilter }: 
       </div>
       <div className="overflow-x-auto flex justify-start md:justify-center">
         <div className="min-w-[450px] max-w-[1300px]">
-          <table className="table-fixed border-collapse w-full text-black bg-white font-mono">
+          <table className="table-fixed border-collapse w-full text-black bg-white font-mono mb-6">
             <thead>
               <tr className="bg-white">
                 <th className="px-1 md:px-3 py-0 w-[6%] lg:w-[4%]"></th>
@@ -129,28 +125,29 @@ export default function RecordTable({ raceType, distance, view, genderFilter }: 
                   記録 {sortKey === "time_ms" ? (sortAsc ? "↑" : "↓") : ""}
                 </th>
                 <th
-                  className="px-1 md:px-3 py-0 cursor-pointer w-[18%]"
-                  onClick={() => handleSort("comment")}
-                >
-                  備考 {sortKey === "comment" ? (sortAsc ? "↑" : "↓") : ""}
-                </th>
-                <th
-                  className="px-1 md:px-3 py-0 cursor-pointer w-[29%]"
+                  className="px-1 md:px-3 py-0 cursor-pointer w-[20%]"
                   onClick={() => handleSort("race_name")}
                 >
                   大会 {sortKey === "race_name" ? (sortAsc ? "↑" : "↓") : ""}
                 </th>
-                <th
+                {show_distance === true && (
+                  <th
                   className="px-1 md:px-3 py-0 cursor-pointer w-[12%] lg:w-[6%]"
                   onClick={() => handleSort("distance")}
                 >
                   種目 {sortKey === "distance" ? (sortAsc ? "↑" : "↓") : ""}
-                </th>
+                </th>)}
                 <th
                   className="px-1 md:px-3 py-0 cursor-pointer w-[16%] lg:w-[8%]"
                   onClick={() => handleSort("date")}
                 >
                   日付 {sortKey === "date" ? (sortAsc ? "↑" : "↓") : ""}
+                </th>
+                <th
+                  className="px-1 md:px-3 py-0 cursor-pointer w-[18%]"
+                  onClick={() => handleSort("comment")}
+                >
+                  備考 {sortKey === "comment" ? (sortAsc ? "↑" : "↓") : ""}
                 </th>
               </tr>
             </thead>
@@ -164,15 +161,16 @@ export default function RecordTable({ raceType, distance, view, genderFilter }: 
                   <td className="px-1 md:px-3 py-0 text-right">
                     {formatTime(r.time_ms)}
                   </td>
-                  <td className="px-1 md:px-3 py-0 whitespace-normal">{r.comment}</td>
                   <td className="px-1 md:px-3 py-0 text-right whitespace-normal">{r.race_name} </td>
+                  {show_distance === true && (
                   <td className="px-1 md:px-3 py-0 text-right">{Math.abs(r.distance - 42.195) < 0.001
                     ? "フル"
                     : Math.abs(r.distance - 21.0975) < 0.001
                       ? "ハーフ"
                       : `${r.distance} km`}
-                  </td>
+                  </td>)}
                   <td className="px-1 md:px-3 py-0">{r.date.substring(0, 4)}/{r.date.substring(5, 7)}/{r.date.substring(8, 10)}</td>
+                  <td className="px-1 md:px-3 py-0 whitespace-normal">{r.comment}</td>
                 </tr>
               ))}
             </tbody>

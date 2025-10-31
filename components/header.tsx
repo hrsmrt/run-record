@@ -6,7 +6,6 @@ import Link from "next/link";
 
 export function Header() {
   const [user, setUser] = useState<{ id: string; email: string } | null>(null);
-  const [name, setName] = useState<string>("");
   const [mounted, setMounted] = useState(false); // クライアント描画確認
   const ref = useRef<HTMLDivElement>(null);
 
@@ -19,16 +18,6 @@ export function Header() {
       const { data: { user }, error } = await supabase.auth.getUser();
       if (user && !error) {
         setUser({ id: user.id, email: user.email ?? "" });
-
-        const { data: profile, error: profileError } = await supabase
-          .from("profiles")
-          .select("name")
-          .eq("user_id", user.id)
-          .single();
-
-        if (!profileError && profile) {
-          setName(profile.name);
-        }
       }
     };
 
@@ -45,7 +34,6 @@ export function Header() {
     const supabase = createClient();
     await supabase.auth.signOut();
     setUser(null);
-    setName("");
   };
 
   // 外側クリックで閉じる
@@ -73,27 +61,52 @@ export function Header() {
 
       {/* ナビ */}
       <nav className="flex flex-row lg:flex-row items-center gap-4 md:gap-6 text-[12px] lg:text-xl">
-        <Link href="./">HOME</Link>
 
         {/* 自分の記録プルダウン */}
-        {user && (
+        { (
           <div className="relative" ref={ref}> {/* ここに ref を付与 */}
             <button
               onClick={() => setOpen(!open)}
               className="hover:underline focus:outline-none"
-            >
-              自己記録 ▼
+            >&#9776;
             </button>
 
             {open && (
               <ul className="absolute mt-2 right-0 bg-white text-black rounded shadow-lg w-48 z-50">
                 <li>
                   <Link
+                    href="/latest"
+                    className="block px-4 py-2 hover:bg-gray-200"
+                    onClick={() => setOpen(false)}
+                  >
+                    最近の記録
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/search"
+                    className="block px-4 py-2 hover:bg-gray-200"
+                    onClick={() => setOpen(false)}
+                  >
+                    検索
+                  </Link>
+                </li>
+                {user && ( <>
+                <li>
+                  <Link
+                    href="/profile"
+                    className="block px-4 py-2 hover:bg-gray-200"
+                  >
+                    プロフィール
+                  </Link>
+                </li>
+                <li>
+                  <Link
                     href="/records"
                     className="block px-4 py-2 hover:bg-gray-200"
                     onClick={() => setOpen(false)}
                   >
-                    表示
+                    自分の記録
                   </Link>
                 </li>
                 <li>
@@ -122,27 +135,14 @@ export function Header() {
                   >
                     記録を編集
                   </Link>
-                </li>
-              </ul>
-            )}
-          </div>
-        )}
-
-        {/* ログイン／ログアウト */}
-        <div className="flex items-center gap-2">
+                </li></>)}
+                <li>
+                  
           {user ? (
             <>
-              <span>
-                <Link
-                  href="/profile"
-                  className="mr-2 font-semibold hover:underline"
-                >
-                  {name || user.email}
-                </Link>
-              </span>
               <button
                 onClick={handleLogout}
-                className="px-3 py-1 bg-black text-white rounded hover:bg-black"
+                className="block px-4 py-2 hover:bg-gray-200"
               >
                 Logout
               </button>
@@ -150,12 +150,17 @@ export function Header() {
           ) : (
             <Link
               href="/auth/login"
-              className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+              className="block px-4 py-2 hover:bg-gray-200"
             >
               Login
             </Link>
-          )}
-        </div>
+          )}</li>
+              </ul>
+            )}
+            {/* ログイン／ログアウト */}
+          </div>
+          
+        )}
       </nav>
     </header>
   );

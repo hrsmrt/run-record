@@ -45,3 +45,14 @@ export function formatTime(ms: number): string {
     return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
   }
 }
+
+export function getOneYearAgoDateFormatted(): string {
+  const today = new Date();
+  today.setFullYear(today.getFullYear() - 1);
+
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
