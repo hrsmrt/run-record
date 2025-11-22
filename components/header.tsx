@@ -92,6 +92,15 @@ export function Header() {
                     検索
                   </Link>
                 </li>
+                <li>
+                  <Link
+                    href="/links"
+                    className="block px-4 py-2 hover:bg-gray-200"
+                    onClick={() => setOpen(false)}
+                  >
+                    リンク集
+                  </Link>
+                </li>
                 {user && ( <>
                 <li>
                   <Link
