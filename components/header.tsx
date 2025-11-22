@@ -57,7 +57,7 @@ export function Header() {
     <header className="flex flex-row items-center justify-between p-4 bg-white border-b border-gray-300 text-black">
       {/* ロゴ */}
       <div className="text-base lg:text-xl font-bold">
-        <Link href="/">Runner’s Record</Link>
+        <Link href="/">Runner&apos;s Record</Link>
       </div>
 
       {/* ナビ */}
