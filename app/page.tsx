@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Clock, Search, Link as LinkIcon } from "lucide-react"
+import { Clock, Search, Link as LinkIcon, Calendar } from "lucide-react"
 
 export default function Home() {
   const pages = [
@@ -25,6 +25,13 @@ export default function Home() {
       description: "関連サイトのリンク集です",
       href: "/links",
       icon: LinkIcon,
+    },
+    {
+      id: 4,
+      title: "大会情報",
+      description: "大会一覧・開催スケジュールのカレンダーです",
+      href: "/event/schedule",
+      icon: Calendar,
     },
   ]
 
