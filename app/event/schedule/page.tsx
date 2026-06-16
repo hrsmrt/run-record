@@ -44,13 +44,17 @@ function buildWeekList(editions: EventEdition[], fy: number): Week[] {
         const sun = new Date(current)
         sun.setDate(sun.getDate() + 1)
 
+        const mon = new Date(sat)
+        mon.setDate(sat.getDate() - 5) // 土曜の5日前 = 月曜
+
         const month = sat.getMonth() + 1
         const weekOfMonth = Math.ceil(sat.getDate() / 7)
-        const label = `${pad(month)}月第${weekOfMonth}週 (${pad(sat.getMonth() + 1)}/${pad(sat.getDate())}-${pad(sun.getDate())})`
-
-        const satStr = localDateStr(sat)
+        const monM = mon.getMonth() + 1
+        const sunM = sun.getMonth() + 1
+        const label = `${pad(month)}月第${weekOfMonth}週 (${pad(monM)}/${pad(mon.getDate())}-${pad(sunM)}/${pad(sun.getDate())})`
+        const monStr = localDateStr(mon)
         const sunStr = localDateStr(sun)
-        const weekEvents = editions.filter(e => e.held_on && e.held_on >= satStr && e.held_on <= sunStr)
+        const weekEvents = editions.filter(e => e.held_on && e.held_on >= monStr && e.held_on <= sunStr)
 
         weeks.push({ label, events: weekEvents })
         current.setDate(current.getDate() + 7)

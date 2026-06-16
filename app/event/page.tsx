@@ -9,6 +9,27 @@ type Event = {
     id: number
     name: string
     url?: string
+    prefecture?: string | null
+}
+
+const PREFECTURE_ORDER = [
+    '北海道','青森県','岩手県','宮城県','秋田県','山形県','福島県',
+    '茨城県','栃木県','群馬県','埼玉県','千葉県','東京都','神奈川県',
+    '新潟県','富山県','石川県','福井県','山梨県','長野県',
+    '岐阜県','静岡県','愛知県','三重県',
+    '滋賀県','京都府','大阪府','兵庫県','奈良県','和歌山県',
+    '鳥取県','島根県','岡山県','広島県','山口県',
+    '徳島県','香川県','愛媛県','高知県',
+    '福岡県','佐賀県','長崎県','熊本県','大分県','宮崎県','鹿児島県','沖縄県',
+]
+
+const normalize = (p: string) => p.replace(/[都府県]$/, '')
+
+const prefOrder = (p?: string | null) => {
+    if (!p) return 999
+    const norm = normalize(p)
+    const i = PREFECTURE_ORDER.findIndex(pref => normalize(pref) === norm)
+    return i === -1 ? 998 : i
 }
 
 export default function EventPage() {
@@ -17,11 +38,15 @@ export default function EventPage() {
     useEffect(() => {
         const fetchEvents = async () => {
             const supabase = createClient();
-            const { data, error } = await supabase.from('events').select('*').order('name', { ascending: true });
+            const { data, error } = await supabase.from('events').select('*');
             if (error) {
                 console.error('Error fetching events:', error);
             } else {
-                setEvents(data as Event[]);
+                const sorted = (data as Event[]).sort((a, b) => {
+                    const pd = prefOrder(a.prefecture) - prefOrder(b.prefecture)
+                    return pd !== 0 ? pd : a.name.localeCompare(b.name)
+                })
+                setEvents(sorted);
             }
         };
         fetchEvents();
@@ -44,6 +69,7 @@ export default function EventPage() {
                                     <th className="px-1 md:px-3 py-0 w-[8%]"></th>
                                     <th className="px-1 md:px-3 py-0 text-left">大会名</th>
                                     <th className="px-1 md:px-3 py-0 text-left">URL</th>
+                                    <th className="px-1 md:px-3 py-0 text-left w-[20%]">県</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-200">
@@ -51,7 +77,7 @@ export default function EventPage() {
                                     <tr key={event.id}>
                                         <td className="px-1 md:px-3 py-0 text-right">{index + 1}.</td>
                                         <td className="px-1 md:px-3 py-0">{event.name}</td>
-                                        <td className="px-1 md:px-3 py-0">
+                                        <td className="px-1 md:px-3 py-0 whitespace-normal">
                                             {event.url && (
                                                 <a
                                                     href={event.url}
@@ -64,6 +90,7 @@ export default function EventPage() {
                                                 </a>
                                             )}
                                         </td>
+                                        <td className="px-1 md:px-3 py-0">{event.prefecture ?? ""}</td>
                                     </tr>
                                 ))}
                             </tbody>
