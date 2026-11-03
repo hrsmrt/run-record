@@ -37,7 +37,7 @@ export default function ProfilePage() {
     fetchProfile()
   }, [])
 
-  if (loading) return <div>Loading...</div>
+  if (loading) return <div>読み込み中...</div>
 
   return (
     <div className="max-w-xl mx-auto p-4">

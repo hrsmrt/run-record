@@ -14,17 +14,17 @@ export default async function Page({
           <Card>
             <CardHeader>
               <CardTitle className="text-2xl">
-                Sorry, something went wrong.
+                エラーが発生しました
               </CardTitle>
             </CardHeader>
             <CardContent>
               {params?.error ? (
                 <p className="text-sm text-muted-foreground">
-                  Code error: {params.error}
+                  エラー内容: {params.error}
                 </p>
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  An unspecified error occurred.
+                  原因不明のエラーが発生しました。もう一度お試しください。
                 </p>
               )}
             </CardContent>
