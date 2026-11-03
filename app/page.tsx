@@ -6,7 +6,7 @@ export default function Home() {
     {
       id: 1,
       title: "最新の記録",
-      description: "直近1年間のマラソン大会結果を閲覧できます",
+      description: "最近の大会結果を大会ごとに閲覧できます",
       href: "/latest",
       icon: Clock,
     },
