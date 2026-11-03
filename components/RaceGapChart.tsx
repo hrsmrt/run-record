@@ -49,35 +49,45 @@ type Basis = "net" | "gross"
 // 差（秒）の表示文。正 = 遅れ
 const gapText = (v: number) => Math.abs(v) < 0.5 ? "基準と同タイム" : `${formatGap(v)} ${v > 0 ? "遅れ" : "先行"}`
 
-// ホバー・タップした地点での順位つき一覧（その地点に通過タイムがある人のみ）
+type RankItem = { id: string; name: string; value: number }
+
+// ある地点での順位つき一覧（その地点に通過タイムがある人のみ、差が小さい = 前にいる順）
+function RankList({ km, items }: { km: number; items: RankItem[] }) {
+    const styles = useContext(LineStyleContext)
+    const ranked = [...items].sort((a, b) => a.value - b.value)
+    return (
+        <div className="bg-white/95 text-black border rounded shadow-md p-2 text-xs md:text-sm">
+            <p className="font-bold mb-1">{pointLabel(km)} 時点</p>
+            <table>
+                <tbody>
+                    {ranked.map((it, i) => (
+                        <tr key={it.id}>
+                            <td className="pr-2 text-right">{i + 1}位</td>
+                            <td className="pr-2 whitespace-nowrap">
+                                {styles.get(it.id) && <LineSample style={styles.get(it.id)!} />}
+                                {it.name}
+                            </td>
+                            <td className="text-right font-mono whitespace-nowrap">{gapText(it.value)}</td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    )
+}
+
+// PC のホバー用ツールチップ
 function RankTooltip(props: ChartsTooltipContainerProps) {
     const tooltips = useAxesTooltip({ directions: ["x"] })
-    const styles = useContext(LineStyleContext)
     if (!tooltips || tooltips.length === 0) return null
     const { axisValue, seriesItems } = tooltips[0]
-    const ranked = seriesItems
+    const items = seriesItems
         .filter(it => typeof it.value === "number")
-        .sort((a, b) => (a.value as number) - (b.value as number))
-    if (ranked.length === 0) return null
+        .map(it => ({ id: String(it.seriesId), name: it.formattedLabel ?? "", value: it.value as number }))
+    if (items.length === 0) return null
     return (
         <ChartsTooltipContainer {...props}>
-            <div className="bg-white text-black border rounded shadow-md p-2 text-xs md:text-sm">
-                <p className="font-bold mb-1">{pointLabel(Number(axisValue))} 時点</p>
-                <table>
-                    <tbody>
-                        {ranked.map((it, i) => (
-                            <tr key={String(it.seriesId)}>
-                                <td className="pr-2 text-right">{i + 1}位</td>
-                                <td className="pr-2">
-                                    <LineSample style={styles.get(String(it.seriesId)) ?? { color: it.color, dash: undefined }} />
-                                    {it.formattedLabel}
-                                </td>
-                                <td className="text-right font-mono">{gapText(it.value as number)}</td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
+            <RankList km={Number(axisValue)} items={items} />
         </ChartsTooltipContainer>
     )
 }
@@ -114,6 +124,8 @@ export function RaceGapChart({ runners, distanceKm }: { runners: GapRunner[]; di
     const [refId, setRefId] = useState(shown[0]?.id)
     const [basis, setBasis] = useState<Basis>("net")
     const coarsePointer = useCoarsePointer()
+    // スマホでタップした地点（横軸のデータ番号）。もう一度タップで閉じる
+    const [tappedIndex, setTappedIndex] = useState<number | null>(null)
     const ref = shown.find(r => r.id === refId) ?? shown[0]
     if (shown.length < 2 || !ref) return null
 
@@ -163,13 +175,13 @@ export function RaceGapChart({ runners, distanceKm }: { runners: GapRunner[]; di
                 <span className="text-gray-500">
                     上が先行・下が遅れ。0 は基準ペースで均等に走った場合
                     {basis === "net" ? "（スタートライン通過から）" : "（号砲から。スタートはロスの分だけ遅れて始まる）"}
+                    {coarsePointer && "。タップでその地点の順位を表示（もう一度タップで閉じる）"}
                 </span>
             </div>
             <LineStyleContext.Provider value={styles}>
-            {/* ライブラリはグラフ部分を touch-action: pan-y（縦スクロールのみ）にしているため、
-                スマホで横スワイプしても枠がスクロールしない。縦横ともブラウザに任せ、タップでツールチップを出す */}
-            <div className="overflow-x-auto">
-                <div className="min-w-[480px] [&_.MuiChartsLayerContainer-root]:[touch-action:pan-x_pan-y]">
+            {/* 横スクロールにするとグラフのジェスチャー処理とぶつかるため、画面幅に収める。
+                グラフ上の縦スワイプはライブラリ側でページのスクロールになる */}
+            <div className="relative">
                     <LineChart
                         height={280}
                         // 標準の凡例は線の種類を表せないため、下に自作の凡例を出す
@@ -200,9 +212,9 @@ export function RaceGapChart({ runners, distanceKm }: { runners: GapRunner[]; di
                         }))}
                         slots={{ tooltip: RankTooltip }}
                         slotProps={{
-                            // スマホはグラフの上端に固定して指と重ならないように、PC はポインタの少し上に表示
+                            // PC はポインタの少し上にツールチップ。スマホは指を離すと消えてしまうため使わず、下の固定表示にする
                             tooltip: coarsePointer
-                                ? { trigger: "axis", anchor: "chart", position: "top" }
+                                ? { trigger: "none" }
                                 : {
                                     trigger: "axis",
                                     anchor: "pointer",
@@ -210,9 +222,24 @@ export function RaceGapChart({ runners, distanceKm }: { runners: GapRunner[]; di
                                     modifiers: [{ name: "offset", options: { offset: [0, 16] } }],
                                 },
                         }}
+                        // スマホ: タップで順位を表示し続け、もう一度タップで閉じる
+                        onAxisClick={coarsePointer
+                            ? (_e, d) => setTappedIndex(prev => prev !== null || !d ? null : d.dataIndex)
+                            : undefined}
                         grid={{ horizontal: true }}
                     />
-                </div>
+                {coarsePointer && tappedIndex !== null && tappedIndex < xs.length && (
+                    // グラフの左上に重ねる。タップはグラフに通して、どこをタップしても閉じられるようにする
+                    <div className="absolute top-0 left-12 pointer-events-none max-w-[calc(100%-3.5rem)]">
+                        <RankList
+                            km={xs[tappedIndex]}
+                            items={shown.flatMap((r, i) => {
+                                const v = gaps[i].get(xs[tappedIndex])
+                                return v === undefined ? [] : [{ id: String(r.id), name: r.name, value: v }]
+                            })}
+                        />
+                    </div>
+                )}
             </div>
             <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs md:text-sm">
                 {shown.map(r => (
