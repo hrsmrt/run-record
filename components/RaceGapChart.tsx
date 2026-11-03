@@ -166,8 +166,10 @@ export function RaceGapChart({ runners, distanceKm }: { runners: GapRunner[]; di
                 </span>
             </div>
             <LineStyleContext.Provider value={styles}>
+            {/* ライブラリはグラフ部分を touch-action: pan-y（縦スクロールのみ）にしているため、
+                スマホで横スワイプしても枠がスクロールしない。縦横ともブラウザに任せ、タップでツールチップを出す */}
             <div className="overflow-x-auto">
-                <div className="min-w-[480px]">
+                <div className="min-w-[480px] [&_.MuiChartsLayerContainer-root]:[touch-action:pan-x_pan-y]">
                     <LineChart
                         height={280}
                         // 標準の凡例は線の種類を表せないため、下に自作の凡例を出す
