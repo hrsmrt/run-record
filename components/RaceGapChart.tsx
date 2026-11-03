@@ -1,7 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { createContext, useContext, useEffect, useState } from "react"
 import { LineChart } from "@mui/x-charts/LineChart"
+import { ChartsTooltipContainer, ChartsTooltipContainerProps, useAxesTooltip } from "@mui/x-charts/ChartsTooltip"
 import { SplitPoint, pointLabel } from "@/lib/splits"
 
 export type GapRunner = {
@@ -14,6 +15,28 @@ export type GapRunner = {
 // 線の色（決まった順で割り当て、基準を切り替えても人ごとの色は変えない）
 // 白背景で色覚の違いを含めて検証済み。緑・黄・ピンクは背景とのコントラストが低いため、点・凡例・表で補う
 const SERIES_COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"]
+// 9人目以降は色を増やさず、同じ8色に線の種類（破線・点線）を組み合わせて区別する
+const DASHES = [undefined, "6 3", "1.5 3"] as const
+
+type LineStyle = { color: string; dash: string | undefined }
+
+// 記録順 i 番目の人の線の色と種類
+const lineStyleAt = (i: number): LineStyle => ({
+    color: SERIES_COLORS[i % SERIES_COLORS.length],
+    dash: DASHES[Math.floor(i / SERIES_COLORS.length) % DASHES.length],
+})
+
+// ツールチップ・凡例で線の種類を参照するための受け渡し（キーは系列 ID）
+const LineStyleContext = createContext<Map<string, LineStyle>>(new Map())
+
+// 凡例・ツールチップ用の線の見本
+function LineSample({ style }: { style: LineStyle }) {
+    return (
+        <svg width="22" height="8" className="inline-block align-middle mr-1" aria-hidden="true">
+            <line x1="1" y1="4" x2="21" y2="4" stroke={style.color} strokeWidth="2.5" strokeDasharray={style.dash} />
+        </svg>
+    )
+}
 
 // 秒 → "1:23"（符号なし）
 const formatGap = (sec: number) => {
@@ -22,6 +45,55 @@ const formatGap = (sec: number) => {
 }
 
 type Basis = "net" | "gross"
+
+// 差（秒）の表示文。正 = 遅れ
+const gapText = (v: number) => Math.abs(v) < 0.5 ? "基準と同タイム" : `${formatGap(v)} ${v > 0 ? "遅れ" : "先行"}`
+
+// ホバー・タップした地点での順位つき一覧（その地点に通過タイムがある人のみ）
+function RankTooltip(props: ChartsTooltipContainerProps) {
+    const tooltips = useAxesTooltip({ directions: ["x"] })
+    const styles = useContext(LineStyleContext)
+    if (!tooltips || tooltips.length === 0) return null
+    const { axisValue, seriesItems } = tooltips[0]
+    const ranked = seriesItems
+        .filter(it => typeof it.value === "number")
+        .sort((a, b) => (a.value as number) - (b.value as number))
+    if (ranked.length === 0) return null
+    return (
+        <ChartsTooltipContainer {...props}>
+            <div className="bg-white text-black border rounded shadow-md p-2 text-xs md:text-sm">
+                <p className="font-bold mb-1">{pointLabel(Number(axisValue))} 時点</p>
+                <table>
+                    <tbody>
+                        {ranked.map((it, i) => (
+                            <tr key={String(it.seriesId)}>
+                                <td className="pr-2 text-right">{i + 1}位</td>
+                                <td className="pr-2">
+                                    <LineSample style={styles.get(String(it.seriesId)) ?? { color: it.color, dash: undefined }} />
+                                    {it.formattedLabel}
+                                </td>
+                                <td className="text-right font-mono">{gapText(it.value as number)}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </ChartsTooltipContainer>
+    )
+}
+
+// タッチ操作の端末か（指でツールチップが隠れないよう、表示位置を変える）
+function useCoarsePointer() {
+    const [coarse, setCoarse] = useState(false)
+    useEffect(() => {
+        const mq = window.matchMedia("(pointer: coarse)")
+        setCoarse(mq.matches)
+        const onChange = (e: MediaQueryListEvent) => setCoarse(e.matches)
+        mq.addEventListener("change", onChange)
+        return () => mq.removeEventListener("change", onChange)
+    }, [])
+    return coarse
+}
 
 // スタートのロス（号砲 → スタートライン通過）。スタート行がなければ 0
 const startLoss = (points: SplitPoint[]) => points.find(p => p.km === 0)?.ms ?? 0
@@ -36,10 +108,12 @@ const basisPoints = (points: SplitPoint[], basis: Basis) => {
 
 // 同じ種目でラップを登録した人どうしを、基準ペース（初期値は最速の人の平均ペース）との差で比較する
 export function RaceGapChart({ runners, distanceKm }: { runners: GapRunner[]; distanceKm: number }) {
-    // ゴールタイム順。色はこの順で固定する
-    const shown = [...runners].sort((a, b) => a.timeMs - b.timeMs).slice(0, SERIES_COLORS.length)
+    // ラップのある人全員をゴールタイム順に。線の色・種類はこの順で固定する
+    const shown = [...runners].sort((a, b) => a.timeMs - b.timeMs)
+    const styles = new Map(shown.map((r, i) => [String(r.id), lineStyleAt(i)]))
     const [refId, setRefId] = useState(shown[0]?.id)
     const [basis, setBasis] = useState<Basis>("net")
+    const coarsePointer = useCoarsePointer()
     const ref = shown.find(r => r.id === refId) ?? shown[0]
     if (shown.length < 2 || !ref) return null
 
@@ -90,14 +164,19 @@ export function RaceGapChart({ runners, distanceKm }: { runners: GapRunner[]; di
                     上が先行・下が遅れ。0 は基準ペースで均等に走った場合
                     {basis === "net" ? "（スタートライン通過から）" : "（号砲から。スタートはロスの分だけ遅れて始まる）"}
                 </span>
-                {runners.length > shown.length && (
-                    <span className="text-gray-500">※ 記録の速い{shown.length}人まで表示</span>
-                )}
             </div>
+            <LineStyleContext.Provider value={styles}>
             <div className="overflow-x-auto">
                 <div className="min-w-[480px]">
                     <LineChart
                         height={280}
+                        // 標準の凡例は線の種類を表せないため、下に自作の凡例を出す
+                        hideLegend
+                        // 9人目以降の破線・点線（線の要素には data-series に系列 ID が入る）
+                        sx={Object.fromEntries(shown.flatMap(r => {
+                            const dash = styles.get(String(r.id))!.dash
+                            return dash ? [[`& .MuiLineChart-line[data-series="${r.id}"]`, { strokeDasharray: dash }]] : []
+                        }))}
                         xAxis={[{
                             data: xs,
                             scaleType: "linear",
@@ -111,17 +190,37 @@ export function RaceGapChart({ runners, distanceKm }: { runners: GapRunner[]; di
                         series={shown.map((r, i) => ({
                             id: String(r.id),
                             label: r.name,
-                            color: SERIES_COLORS[i],
+                            color: styles.get(String(r.id))!.color,
                             data: xs.map(x => gaps[i].get(x) ?? null),
                             connectNulls: true,
                             showMark: true,
-                            valueFormatter: (v: number | null) =>
-                                v === null ? "" : Math.abs(v) < 0.5 ? "同タイム" : `${formatGap(v)} ${v > 0 ? "遅れ" : "先行"}`,
+                            valueFormatter: (v: number | null) => v === null ? "" : gapText(v),
                         }))}
+                        slots={{ tooltip: RankTooltip }}
+                        slotProps={{
+                            // スマホはグラフの上端に固定して指と重ならないように、PC はポインタの少し上に表示
+                            tooltip: coarsePointer
+                                ? { trigger: "axis", anchor: "chart", position: "top" }
+                                : {
+                                    trigger: "axis",
+                                    anchor: "pointer",
+                                    position: "top",
+                                    modifiers: [{ name: "offset", options: { offset: [0, 16] } }],
+                                },
+                        }}
                         grid={{ horizontal: true }}
                     />
                 </div>
             </div>
+            <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs md:text-sm">
+                {shown.map(r => (
+                    <li key={r.id} className="whitespace-nowrap">
+                        <LineSample style={styles.get(String(r.id))!} />
+                        {r.name}
+                    </li>
+                ))}
+            </ul>
+            </LineStyleContext.Provider>
         </div>
     )
 }
