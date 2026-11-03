@@ -4,6 +4,7 @@ import { useState, useEffect, ReactNode } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { formatTime } from "@/lib/utils"
 import { ExternalLink } from "lucide-react"
+import Link from "next/link"
 
 type RaceRecord = {
   id: number
@@ -14,6 +15,7 @@ type RaceRecord = {
   date: string
   gender?: string
   comment?: string
+  event_id: number | null
 }
 
 type Props = {
@@ -39,21 +41,25 @@ export default function RecordTable({ view, genderFilter, distance, raceType, da
   useEffect(() => {
     const fetchRecords = async () => {
       const supabase = createClient()
-      const tableMap: Record<
-        "5km" | "10km" | "half" | "full" | "100km" | "その他(100km未満)" | "その他(100km以上)" | "all",
-        string
-      > = {
-        "5km": view === "all" ? "public_5" : "public_5_best",
-        "10km": view === "all" ? "public_10" : "public_10_best",
-        "half": view === "all" ? "public_half" : "public_half_best",
-        "full": view === "all" ? "public_full" : "public_full_best",
-        "100km": view === "all" ? "public_100" : "public_100_best",
-        "その他(100km未満)": "public_others_under100",
-        "その他(100km以上)": "public_others_over100",
-        "all": view === "all" ? "public_record" : "public_record_best"
+      // public_results の category（距離区分）に対応。その他は時間走も距離で振り分ける
+      const categoryFilter: Record<string, string> = {
+        "5km": "category.eq.5km",
+        "10km": "category.eq.10km",
+        "half": "category.eq.half",
+        "full": "category.eq.full",
+        "100km": "category.eq.100km",
+        "その他(100km未満)": "category.eq.under100,and(category.eq.time,distance.lt.100)",
+        "その他(100km以上)": "category.eq.over100,and(category.eq.time,distance.gt.100)",
       };
-      const tableName = tableMap[distance as keyof typeof tableMap] || "public_record";
-      let query = supabase.from(tableName).select("*");
+      let query = supabase.from("public_results").select("*");
+      const filter = categoryFilter[distance]
+      if (filter) {
+        query = query.or(filter)
+        // その他はベスト表示の対象外（距離がばらばらのため）
+        if (view === "best" && !distance.startsWith("その他")) {
+          query = query.eq("is_best", true)
+        }
+      }
       if (date_min !== "") {
         query = query.gt("date", date_min)
       }
@@ -212,7 +218,11 @@ export default function RecordTable({ view, genderFilter, distance, raceType, da
                   <td className="px-1 md:px-3 py-0 text-right">
                     {formatTime(r.time_ms)}
                   </td>
-                  <td className="px-1 md:px-3 py-0 text-right whitespace-normal">{r.race_name} </td>
+                  <td className="px-1 md:px-3 py-0 text-right whitespace-normal">
+                    {r.event_id != null
+                      ? <Link href={`/event/${r.event_id}`} className="text-blue-600 hover:underline">{r.race_name}</Link>
+                      : r.race_name}
+                  </td>
                   {show_distance === true && (
                   <td className="px-1 md:px-3 py-0 text-right">{Math.abs(r.distance - 42.195) < 0.001
                     ? "フル"
