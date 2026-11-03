@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Menu } from "lucide-react";
 
 export function Header() {
-  const [user, setUser] = useState<{ id: string; email: string } | null>(null);
+  const [user, setUser] = useState<{ id: string; email: string; isAdmin: boolean } | null>(null);
   const [mounted, setMounted] = useState(false); // クライアント描画確認
   const ref = useRef<HTMLDivElement>(null);
 
@@ -18,7 +18,7 @@ export function Header() {
     const fetchUser = async () => {
       const { data: { user }, error } = await supabase.auth.getUser();
       if (user && !error) {
-        setUser({ id: user.id, email: user.email ?? "" });
+        setUser({ id: user.id, email: user.email ?? "", isAdmin: user.app_metadata?.role === "admin" });
       }
     };
 
@@ -146,6 +146,16 @@ export function Header() {
                     記録を編集
                   </Link>
                 </li></>)}
+                {user?.isAdmin && (
+                <li>
+                  <Link
+                    href="/event/edit-events"
+                    className="block px-4 py-2 hover:bg-gray-200"
+                    onClick={() => setOpen(false)}
+                  >
+                    大会情報を編集
+                  </Link>
+                </li>)}
                 <li>
                   
           {user ? (

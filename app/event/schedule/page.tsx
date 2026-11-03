@@ -2,15 +2,14 @@
 
 import { createClient } from "@/lib/supabase/client"
 import { useEffect, useState } from 'react'
-import { ExternalLink } from "lucide-react"
 import Link from "next/link"
 
 type EventEdition = {
     id: number
     held_on: string | null
     events: {
+        id: number
         name: string
-        url: string | null
     }
 }
 
@@ -77,7 +76,7 @@ export default function EventSchedulePage() {
             const supabase = createClient()
             const { data, error } = await supabase
                 .from('event_editions')
-                .select('id, held_on, events(name, url)')
+                .select('id, held_on, events(id, name)')
                 .order('held_on', { ascending: true })
             if (error) {
                 console.error('Error fetching event editions:', error)
@@ -131,19 +130,11 @@ export default function EventSchedulePage() {
                                                     const dateLabel = ed.held_on
                                                         ? ` (${parseInt(ed.held_on.substring(5, 7))}/${parseInt(ed.held_on.substring(8, 10))})`
                                                         : ""
-                                                    return ed.events.url ? (
-                                                        <a
-                                                            key={ed.id}
-                                                            href={ed.events.url}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            className="text-blue-600 hover:underline inline-flex items-center gap-1"
-                                                        >
+                                                    return (
+                                                        <span key={ed.id} className="inline-flex items-center gap-2">
                                                             {ed.events.name}{dateLabel}
-                                                            <ExternalLink size={12} className="inline shrink-0" />
-                                                        </a>
-                                                    ) : (
-                                                        <span key={ed.id}>{ed.events.name}{dateLabel}</span>
+                                                            <Link href={`/event/${ed.events.id}`} className="text-xs text-blue-600 hover:underline shrink-0">詳細</Link>
+                                                        </span>
                                                     )
                                                 })}
                                             </div>

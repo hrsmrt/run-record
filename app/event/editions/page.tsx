@@ -2,7 +2,6 @@
 
 import { createClient } from "@/lib/supabase/client"
 import { useEffect, useState } from 'react'
-import { ExternalLink } from "lucide-react"
 import Link from "next/link"
 
 type EventEdition = {
@@ -10,8 +9,8 @@ type EventEdition = {
     edition_number: number | null
     held_on: string | null
     events: {
+        id: number
         name: string
-        url: string | null
         type: string
     }
 }
@@ -24,7 +23,7 @@ export default function EventEditionsPage() {
             const supabase = createClient()
             const { data, error } = await supabase
                 .from('event_editions')
-                .select('id, edition_number, held_on, events(name, url, type)')
+                .select('id, edition_number, held_on, events(id, name, type)')
                 .order('held_on', { ascending: false })
             if (error) {
                 console.error('Error fetching event editions:', error)
@@ -65,19 +64,10 @@ export default function EventEditionsPage() {
                                                 : ""}
                                         </td>
                                         <td className="px-1 md:px-3 py-0">
-                                            {ed.events.url ? (
-                                                <a
-                                                    href={ed.events.url}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="text-blue-600 hover:underline inline-flex items-center gap-1"
-                                                >
-                                                    {ed.events.name}
-                                                    <ExternalLink size={12} className="inline shrink-0" />
-                                                </a>
-                                            ) : (
-                                                ed.events.name
-                                            )}
+                                            <span className="inline-flex items-center gap-2">
+                                                {ed.events.name}
+                                                <Link href={`/event/${ed.events.id}`} className="text-xs text-blue-600 hover:underline shrink-0">詳細</Link>
+                                            </span>
                                         </td>
                                         <td className="px-1 md:px-3 py-0 text-right">
                                             {ed.edition_number != null ? `第${ed.edition_number}回` : ""}

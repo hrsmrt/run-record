@@ -1,0 +1,18 @@
+import Link from "next/link"
+
+const PAGES = [
+    { href: "/event/edit-events", label: "大会編集" },
+    { href: "/event/edit-editions", label: "開催日編集" },
+    { href: "/event/edit-races", label: "種目編集" },
+]
+
+export function EventAdminNav({ current }: { current: string }) {
+    return (
+        <nav className="flex gap-4 px-4 pt-4 text-sm">
+            {PAGES.map(p => p.href === current
+                ? <span key={p.href} className="font-bold">{p.label}</span>
+                : <Link key={p.href} href={p.href} className="text-blue-600 hover:underline">{p.label}</Link>
+            )}
+        </nav>
+    )
+}
