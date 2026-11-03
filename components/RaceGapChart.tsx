@@ -21,62 +21,75 @@ const formatGap = (sec: number) => {
     return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`
 }
 
-// スタートのロスを引いたネット通過タイムの一覧（0km を含む、距離順）
-const netPoints = (points: SplitPoint[]) => {
-    const startMs = points.find(p => p.km === 0)?.ms ?? 0
-    const net = points.filter(p => p.km > 0).map(p => ({ km: p.km, ms: p.ms - startMs }))
-    return [{ km: 0, ms: 0 }, ...net].sort((a, b) => a.km - b.km)
+type Basis = "net" | "gross"
+
+// スタートのロス（号砲 → スタートライン通過）。スタート行がなければ 0
+const startLoss = (points: SplitPoint[]) => points.find(p => p.km === 0)?.ms ?? 0
+
+// 通過タイムの一覧（0km を含む、距離順）
+// ネット: スタートライン通過からの時間（スタートは 0）、グロス: 号砲からの時間（スタートはロス）
+const basisPoints = (points: SplitPoint[], basis: Basis) => {
+    const loss = startLoss(points)
+    const after = points.filter(p => p.km > 0).map(p => ({ km: p.km, ms: basis === "net" ? p.ms - loss : p.ms }))
+    return [{ km: 0, ms: basis === "net" ? 0 : loss }, ...after].sort((a, b) => a.km - b.km)
 }
 
-// 基準の人の、任意の地点でのネット通過タイム（前後の地点から直線で見積もる。範囲外は null）
-const interpolate = (ref: { km: number; ms: number }[], km: number): number | null => {
-    for (let i = 1; i < ref.length; i++) {
-        const a = ref[i - 1], b = ref[i]
-        if (km >= a.km && km <= b.km) {
-            if (b.km === a.km) return b.ms
-            return a.ms + (b.ms - a.ms) * (km - a.km) / (b.km - a.km)
-        }
-    }
-    return null
-}
-
-// 同じ種目でラップを登録した人どうしの「基準の人との差」の推移
-export function RaceGapChart({ runners }: { runners: GapRunner[] }) {
+// 同じ種目でラップを登録した人どうしを、基準ペース（初期値は最速の人の平均ペース）との差で比較する
+export function RaceGapChart({ runners, distanceKm }: { runners: GapRunner[]; distanceKm: number }) {
     // ゴールタイム順。色はこの順で固定する
     const shown = [...runners].sort((a, b) => a.timeMs - b.timeMs).slice(0, SERIES_COLORS.length)
     const [refId, setRefId] = useState(shown[0]?.id)
+    const [basis, setBasis] = useState<Basis>("net")
     const ref = shown.find(r => r.id === refId) ?? shown[0]
     if (shown.length < 2 || !ref) return null
 
-    const refNet = netPoints(ref.points)
-    // 各人の、自分の通過地点での差（秒）。正 = 基準より遅れ
+    // 基準: 選んだ人のゴールタイムを距離で割った平均ペースで、ゴールまで均等に走った場合の通過タイム
+    // （記録はネット。グロスでは基準の人のロスを足したタイムを使う）
+    const refFinishMs = basis === "net" ? ref.timeMs : ref.timeMs + startLoss(ref.points)
+    const refPaceMsPerKm = refFinishMs / distanceKm
+    // 各人の、自分の通過地点での差（秒）。正 = 基準ペースより遅れ
     const gaps = shown.map(r => {
         const byKm = new Map<number, number>()
-        for (const p of netPoints(r.points)) {
-            if (p.km === 0) continue
-            const refMs = interpolate(refNet, p.km)
-            if (refMs !== null) byKm.set(p.km, (p.ms - refMs) / 1000)
+        // スタート（0km）も含めて、全員の線をスタートから結ぶ（グロスはロスの分だけ遅れて始まる）
+        for (const p of basisPoints(r.points, basis)) {
+            byKm.set(p.km, (p.ms - refPaceMsPerKm * p.km) / 1000)
         }
         return byKm
     })
     const xs = [...new Set(gaps.flatMap(g => [...g.keys()]))].sort((a, b) => a - b)
-    if (xs.length === 0) return null
+    // スタートの点しかない（通過地点が未入力）ならグラフを出さない
+    if (xs.length <= 1) return null
 
     return (
         <div className="mt-2">
             <div className="flex flex-wrap items-center gap-2 text-xs md:text-sm mb-1">
-                <span className="font-bold text-gray-600">基準の人との差</span>
+                <span className="font-bold text-gray-600">基準ペースとの差</span>
                 <label className="flex items-center gap-1">
-                    基準:
+                    基準ペース:
                     <select
                         value={ref.id}
                         onChange={e => setRefId(Number(e.target.value))}
                         className="border rounded px-1 py-0.5 bg-white"
                     >
-                        {shown.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                        {shown.map(r => <option key={r.id} value={r.id}>{r.name}の平均ペース</option>)}
                     </select>
                 </label>
-                <span className="text-gray-500">上が先行・下が遅れ（ネットタイムで比較）</span>
+                <div className="flex rounded border overflow-hidden" role="group" aria-label="比較するタイム">
+                    {(["net", "gross"] as const).map(b => (
+                        <button
+                            key={b}
+                            onClick={() => setBasis(b)}
+                            aria-pressed={basis === b}
+                            className={`px-2 py-0.5 ${basis === b ? "bg-blue-600 text-white" : "bg-white hover:bg-gray-100"}`}
+                        >
+                            {b === "net" ? "ネット" : "グロス"}
+                        </button>
+                    ))}
+                </div>
+                <span className="text-gray-500">
+                    上が先行・下が遅れ。0 は基準ペースで均等に走った場合
+                    {basis === "net" ? "（スタートライン通過から）" : "（号砲から。スタートはロスの分だけ遅れて始まる）"}
+                </span>
                 {runners.length > shown.length && (
                     <span className="text-gray-500">※ 記録の速い{shown.length}人まで表示</span>
                 )}

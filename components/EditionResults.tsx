@@ -94,7 +94,7 @@ export function EditionResults({ races, results, splits }: {
                 return (
                     <div key={race.id} className="mt-3 bg-white p-2">
                         {races.length > 1 && <p className="text-xs font-bold mb-1">{race.name}</p>}
-                        <RaceGapChart runners={runners} />
+                        <RaceGapChart runners={runners} distanceKm={race.distance_km} />
                     </div>
                 )
             })}
