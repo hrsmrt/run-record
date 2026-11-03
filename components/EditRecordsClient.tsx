@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { RaceDatalist, RaceInput, useRaceOptions } from "@/components/RaceInput"
+import { MemberSelect } from "@/components/MemberSelect"
 
 type Record = {
   id: number
@@ -52,12 +53,25 @@ export function EditRecordsClient() {
     return hours*3600000 + minutes*60000 + seconds*1000 + centiseconds*10
   }
 
+  // 管理者は編集対象のメンバーを選べる（それ以外は常に自分）
+  const [selfId, setSelfId] = useState<string | null>(null)
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [targetUserId, setTargetUserId] = useState<string | null>(null)
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return
+      setSelfId(user.id)
+      setTargetUserId(user.id)
+      setIsAdmin(user.app_metadata?.role === "admin")
+    })
+  }, [supabase])
+
   // データ取得
   useEffect(() => {
     const fetchRecords = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setRecords([]); return }
-      let query = supabase.from("results").select("*").eq("user_id", user.id)
+      if (!targetUserId) { setRecords([]); return }
+      let query = supabase.from("results").select("*").eq("user_id", targetUserId)
       if (distanceFilter !== "all") {
         if (distanceFilter === "other_under_100") {
           query = query.lt("distance", 100).not("distance", "in", "(5,10,21.0975,42.195)")
@@ -78,7 +92,7 @@ export function EditRecordsClient() {
       setRecords(formatted)
     }
     fetchRecords()
-  }, [distanceFilter, raceTypeFilter, supabase])
+  }, [distanceFilter, raceTypeFilter, targetUserId, supabase])
 
   const updateRow = (id: number, patch: Partial<RecordWithTimeStr>) => {
     setRecords(prev => prev.map(r => r.id === id ? { ...r, ...patch } : r))
@@ -145,6 +159,12 @@ export function EditRecordsClient() {
 
   return (
     <div className="max-w-[1400px] mx-auto p-4">
+      {isAdmin && selfId && targetUserId && (
+        <div className="mb-4 flex items-center gap-2">
+          <span className="text-sm font-semibold">編集するメンバー（管理者）</span>
+          <MemberSelect selfId={selfId} value={targetUserId} onChange={setTargetUserId} className="px-2 py-1 border rounded" />
+        </div>
+      )}
       {/* フィルター */}
       <div className="flex gap-4 mb-4">
         <select value={distanceFilter} onChange={e => setDistanceFilter(e.target.value)} className="px-2 py-1 rounded">

@@ -58,12 +58,13 @@ export default function SplitsPage() {
             const supabase = createClient()
             const { data: { user } } = await supabase.auth.getUser()
             if (!user || !Number.isInteger(resultId)) { setStatus("notFound"); return }
-            const { data, error } = await supabase
+            // 管理者は全員分、それ以外は自分の記録のみ
+            let query = supabase
                 .from("results")
                 .select("id, race_name, date, distance, time_ms")
                 .eq("id", resultId)
-                .eq("user_id", user.id)
-                .maybeSingle()
+            if (user.app_metadata?.role !== "admin") query = query.eq("user_id", user.id)
+            const { data, error } = await query.maybeSingle()
             if (error || !data) { setStatus("notFound"); return }
             setResult(data)
             await loadSplits()

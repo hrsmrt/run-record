@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { timeToMs } from "@/lib/utils"; // 既存の timeToMs 関数を流用
 import { RaceDatalist, RaceInput, useRaceOptions } from "@/components/RaceInput";
+import { MemberSelect } from "@/components/MemberSelect";
 
 export default function AddRecordForm() {
   const [time, setTime] = useState("");
@@ -18,7 +19,19 @@ export default function AddRecordForm() {
   // 送信後に大会検索欄を空に戻すためのキー
   const [resetKey, setResetKey] = useState(0);
   const { options: raceOptions, error: raceError } = useRaceOptions();
+  // 管理者は登録先のメンバーを選べる（それ以外は常に自分）
+  const [selfId, setSelfId] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [targetUserId, setTargetUserId] = useState<string | null>(null);
 
+  useEffect(() => {
+    createClient().auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      setSelfId(user.id);
+      setTargetUserId(user.id);
+      setIsAdmin(user.app_metadata?.role === "admin");
+    });
+  }, []);
 
   // --- 単体フォーム送信 ---
   const handleSubmit = async (e: React.FormEvent) => {
@@ -42,7 +55,7 @@ export default function AddRecordForm() {
     }
 
     const { error } = await supabase.from("results").insert({
-      user_id: user.id,
+      user_id: isAdmin && targetUserId ? targetUserId : user.id,
       time_ms: timeToMs(time),
       distance: Number(distance),
       race_name: raceName,
@@ -77,6 +90,17 @@ export default function AddRecordForm() {
         className="max-w-md mx-auto p-6 bg-white shadow rounded-lg space-y-4 text-black"
       >
         <div className="flex flex-col gap-4">
+          {isAdmin && selfId && targetUserId && (
+            <div className="flex items-center">
+              <span className="mr-2 w-32 text-right whitespace-nowrap">登録先（管理者）</span>
+              <MemberSelect
+                selfId={selfId}
+                value={targetUserId}
+                onChange={setTargetUserId}
+                className="flex-1 rounded-md border border-gray-300 px-3 py-2 bg-white"
+              />
+            </div>
+          )}
           <div className="flex flex-col gap-1">
             <div className="flex items-center">
               <span className="mr-2 w-32 text-right whitespace-nowrap">大会（任意）</span>
