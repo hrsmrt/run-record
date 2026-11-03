@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // 開発サーバーに同じ LAN のスマホなど（192.168.x.x）からアクセスできるようにする（本番には影響しない）
+  allowedDevOrigins: ["192.168.*.*"],
   async headers() {
     return [
       {
