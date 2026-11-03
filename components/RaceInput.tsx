@@ -7,6 +7,7 @@ export type RaceOption = {
     id: number
     label: string
     eventName: string
+    eventType: string
     heldOn: string | null
     distanceKm: number
 }
@@ -15,7 +16,7 @@ type RaceRow = {
     id: number
     name: string
     distance_km: number
-    event_editions: { held_on: string | null; events: { name: string } }
+    event_editions: { held_on: string | null; events: { name: string; type: string } }
 }
 
 const formatDate = (d: string) => `${d.substring(0, 4)}/${d.substring(5, 7)}/${d.substring(8, 10)}`
@@ -30,7 +31,7 @@ export function useRaceOptions() {
             const supabase = createClient()
             const { data, error } = await supabase
                 .from("races")
-                .select("id, name, distance_km, event_editions(held_on, events(name))")
+                .select("id, name, distance_km, event_editions(held_on, events(name, type))")
             if (error) { setError(error.message); setOptions([]); return }
             const rows = data as unknown as RaceRow[]
             setOptions(rows
@@ -39,6 +40,7 @@ export function useRaceOptions() {
                     const eventName = r.event_editions.events.name
                     return {
                         id: r.id,
+                        eventType: r.event_editions.events.type,
                         label: `${eventName} ${heldOn ? formatDate(heldOn) : "開催日未定"} ${r.name}`,
                         eventName,
                         heldOn,
