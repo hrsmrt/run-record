@@ -38,6 +38,12 @@ export function LoginForm({
         password,
       });
       if (error) throw error;
+      // 2段階認証を登録済みならコード入力へ
+      const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (aal?.nextLevel === "aal2" && aal.currentLevel !== "aal2") {
+        router.push("/auth/mfa");
+        return;
+      }
       router.push("/");
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "";

@@ -5,6 +5,7 @@ import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { RaceDatalist, RaceInput, useRaceOptions } from "@/components/RaceInput"
 import { MemberSelect } from "@/components/MemberSelect"
+import { getAdminState } from "@/lib/admin"
 
 type Record = {
   id: number
@@ -56,14 +57,17 @@ export function EditRecordsClient() {
   // 管理者は編集対象のメンバーを選べる（それ以外は常に自分）
   const [selfId, setSelfId] = useState<string | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
+  // 管理者機能は2段階認証済みのときだけ使える
+  const [adminNeedsMfa, setAdminNeedsMfa] = useState(false)
   const [targetUserId, setTargetUserId] = useState<string | null>(null)
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    getAdminState(supabase).then(({ user, isAdmin, adminActive }) => {
       if (!user) return
       setSelfId(user.id)
       setTargetUserId(user.id)
-      setIsAdmin(user.app_metadata?.role === "admin")
+      setIsAdmin(adminActive)
+      setAdminNeedsMfa(isAdmin && !adminActive)
     })
   }, [supabase])
 
@@ -159,6 +163,13 @@ export function EditRecordsClient() {
 
   return (
     <div className="max-w-[1400px] mx-auto p-4">
+      {adminNeedsMfa && (
+        <p className="mb-4 text-xs text-gray-500">
+          他のメンバーの記録を編集するには
+          <Link href="/auth/mfa?next=/records/edit" className="text-blue-600 hover:underline">2段階認証</Link>
+          が必要です
+        </p>
+      )}
       {isAdmin && selfId && targetUserId && (
         <div className="mb-4 flex items-center gap-2">
           <span className="text-sm font-semibold">編集するメンバー（管理者）</span>

@@ -5,6 +5,7 @@ import { useParams } from "next/navigation"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { useUnsavedWarning } from "@/lib/use-unsaved-warning"
+import { getAdminState } from "@/lib/admin"
 import { HALF_KM, formatDistance, formatElapsed, formatPace, isFull, parseElapsed, pointLabel } from "@/lib/splits"
 
 type Result = {
@@ -56,14 +57,14 @@ export default function SplitsPage() {
     useEffect(() => {
         const fetch = async () => {
             const supabase = createClient()
-            const { data: { user } } = await supabase.auth.getUser()
+            const { user, adminActive } = await getAdminState(supabase)
             if (!user || !Number.isInteger(resultId)) { setStatus("notFound"); return }
             // 管理者は全員分、それ以外は自分の記録のみ
             let query = supabase
                 .from("results")
                 .select("id, race_name, date, distance, time_ms")
                 .eq("id", resultId)
-            if (user.app_metadata?.role !== "admin") query = query.eq("user_id", user.id)
+            if (!adminActive) query = query.eq("user_id", user.id)
             const { data, error } = await query.maybeSingle()
             if (error || !data) { setStatus("notFound"); return }
             setResult(data)

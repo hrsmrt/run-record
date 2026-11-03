@@ -10,6 +10,9 @@ export default async function EditRacesPage() {
     if (error || !data?.claims || data.claims.app_metadata?.role !== "admin") {
         redirect("/")
     }
+    if (data.claims.aal !== "aal2") {
+        redirect("/auth/mfa?next=/event/edit-races")
+    }
 
     return (
         <div>

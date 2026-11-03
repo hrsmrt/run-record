@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/client";
 import { timeToMs } from "@/lib/utils"; // 既存の timeToMs 関数を流用
 import { RaceDatalist, RaceInput, useRaceOptions } from "@/components/RaceInput";
 import { MemberSelect } from "@/components/MemberSelect";
+import { getAdminState } from "@/lib/admin";
+import Link from "next/link";
 
 export default function AddRecordForm() {
   const [time, setTime] = useState("");
@@ -22,14 +24,17 @@ export default function AddRecordForm() {
   // 管理者は登録先のメンバーを選べる（それ以外は常に自分）
   const [selfId, setSelfId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  // 管理者機能は2段階認証済みのときだけ使える
+  const [adminNeedsMfa, setAdminNeedsMfa] = useState(false);
   const [targetUserId, setTargetUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    createClient().auth.getUser().then(({ data: { user } }) => {
+    getAdminState(createClient()).then(({ user, isAdmin, adminActive }) => {
       if (!user) return;
       setSelfId(user.id);
       setTargetUserId(user.id);
-      setIsAdmin(user.app_metadata?.role === "admin");
+      setIsAdmin(adminActive);
+      setAdminNeedsMfa(isAdmin && !adminActive);
     });
   }, []);
 
@@ -90,6 +95,13 @@ export default function AddRecordForm() {
         className="max-w-md mx-auto p-6 bg-white shadow rounded-lg space-y-4 text-black"
       >
         <div className="flex flex-col gap-4">
+          {adminNeedsMfa && (
+            <p className="text-xs text-gray-500">
+              他のメンバーの記録を登録するには
+              <Link href="/auth/mfa?next=/records/form" className="text-blue-600 hover:underline">2段階認証</Link>
+              が必要です
+            </p>
+          )}
           {isAdmin && selfId && targetUserId && (
             <div className="flex items-center">
               <span className="mr-2 w-32 text-right whitespace-nowrap">登録先（管理者）</span>

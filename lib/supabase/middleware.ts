@@ -65,10 +65,19 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/profile") ||
     pathname.startsWith("/event/edit") ||
     pathname.startsWith("/reports/edit") ||
+    pathname.startsWith("/auth/mfa") ||
     pathname.startsWith("/auth/update-password");
   if (isViewer && viewerBlocked) {
     const url = request.nextUrl.clone();
     url.pathname = "/";
+    return NextResponse.redirect(url);
+  }
+
+  // 管理者ページは2段階認証済み（aal2）のセッションのみ。未認証なら登録・入力画面へ
+  if (pathname.startsWith("/event/edit") && user?.app_metadata?.role === "admin" && user?.aal !== "aal2") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/auth/mfa";
+    url.search = `?next=${encodeURIComponent(pathname)}`;
     return NextResponse.redirect(url);
   }
 
