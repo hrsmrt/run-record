@@ -28,6 +28,8 @@ type RaceGroup = {
     raceName: string
     eventId: number | null
     records: LatestRecord[]
+    // 大会レポート（大会情報に紐付いた大会のみ）
+    report: { editionId: number; count: number } | null
 }
 
 const MIN_GROUPS = 20
@@ -51,19 +53,33 @@ export function LatestByRace() {
     useEffect(() => {
         const fetchRecords = async () => {
             const supabase = createClient()
-            const { data, error } = await supabase
-                .from("public_results")
-                .select("id, name, gender, time_ms, distance, race_name, date, comment, clever_index, event_id, has_splits")
-                .not("date", "is", null)
-                .order("date", { ascending: false })
-                .limit(1000)
+            const [{ data, error }, { data: reportData }] = await Promise.all([
+                supabase
+                    .from("public_results")
+                    .select("id, name, gender, time_ms, distance, race_name, date, comment, clever_index, event_id, has_splits")
+                    .not("date", "is", null)
+                    .order("date", { ascending: false })
+                    .limit(1000),
+                supabase.from("public_race_reports").select("event_edition_id, event_id, held_on"),
+            ])
             if (error) { setError(error.message); return }
+
+            // 大会レポートを「開催日|大会ID」ごとに数える
+            const reportsByKey = new Map<string, { editionId: number; count: number }>()
+            for (const rp of reportData ?? []) {
+                const k = `${rp.held_on}|${rp.event_id}`
+                const cur = reportsByKey.get(k)
+                reportsByKey.set(k, { editionId: rp.event_edition_id, count: (cur?.count ?? 0) + 1 })
+            }
 
             // 日付の新しい順に大会ごとにまとめる（大会情報に紐付いていれば event_id、なければ大会名で判定）
             const byKey = new Map<string, RaceGroup>()
             for (const r of (data ?? []) as LatestRecord[]) {
                 const key = `${r.date}|${r.event_id ?? r.race_name}`
-                const g = byKey.get(key) ?? { key, date: r.date, raceName: r.race_name, eventId: r.event_id, records: [] }
+                const g = byKey.get(key) ?? {
+                    key, date: r.date, raceName: r.race_name, eventId: r.event_id, records: [],
+                    report: r.event_id != null ? reportsByKey.get(`${r.date}|${r.event_id}`) ?? null : null,
+                }
                 g.records.push(r)
                 byKey.set(key, g)
             }
@@ -98,6 +114,14 @@ export function LatestByRace() {
                             ? <Link href={`/event/${g.eventId}`} className="text-blue-600 hover:underline">{g.raceName}</Link>
                             : g.raceName}
                         <span className="ml-2 text-xs font-normal text-gray-500">{g.records.length}人</span>
+                        {g.report && g.eventId != null && (
+                            <Link
+                                href={`/event/${g.eventId}#edition-${g.report.editionId}`}
+                                className="ml-3 text-xs font-normal text-blue-600 hover:underline"
+                            >
+                                レポート {g.report.count}件
+                            </Link>
+                        )}
                     </h2>
                     <div className="overflow-x-auto">
                         <table className="border-collapse w-full bg-white font-mono text-[10px] md:text-sm whitespace-nowrap">

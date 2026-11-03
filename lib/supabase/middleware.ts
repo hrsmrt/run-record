@@ -64,6 +64,7 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/records") ||
     pathname.startsWith("/profile") ||
     pathname.startsWith("/event/edit") ||
+    pathname.startsWith("/reports/edit") ||
     pathname.startsWith("/auth/update-password");
   if (isViewer && viewerBlocked) {
     const url = request.nextUrl.clone();

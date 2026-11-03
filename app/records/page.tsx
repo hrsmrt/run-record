@@ -14,6 +14,8 @@ type Record = {
   distance: number
   date: string
   comment?: string
+  // 大会情報に紐付いていれば開催回 ID が取れる（レポートの入力先）
+  races: { event_edition_id: number } | null
 }
 
 export default function Page() {
@@ -29,7 +31,7 @@ export default function Page() {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setRecords([]); return }
-      let query = supabase.from("results").select("*").eq("user_id", user.id)
+      let query = supabase.from("results").select("*, races(event_edition_id)").eq("user_id", user.id)
 
       if (distanceFilter !== "all") {
         if (distanceFilter === "other_under_100") {
@@ -128,6 +130,7 @@ export default function Page() {
               日付 {sortKey === "date" ? (sortAsc ? "↑" : "↓") : ""}
             </th>
             <th className="px-1 py-0 text-center">ラップ</th>
+            <th className="px-1 py-0 text-center">レポート</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-200">
@@ -148,6 +151,11 @@ export default function Page() {
                   <td className="px-1 md:px-3 py-0">{r.date.substring(0, 4)}/{r.date.substring(5, 7)}/{r.date.substring(8, 10)}</td>
                   <td className="px-1 md:px-3 py-0 text-center">
                     <Link href={`/records/${r.id}/splits`} className="text-blue-600 hover:underline">入力</Link>
+                  </td>
+                  <td className="px-1 md:px-3 py-0 text-center">
+                    {r.races
+                      ? <Link href={`/reports/edit/${r.races.event_edition_id}`} className="text-blue-600 hover:underline">書く</Link>
+                      : <span className="text-gray-400" title="大会情報に未登録のため書けません">—</span>}
                   </td>
                 </tr>
               ))}

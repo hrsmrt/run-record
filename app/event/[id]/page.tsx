@@ -7,6 +7,8 @@ import { ExternalLink } from "lucide-react"
 import Link from "next/link"
 import { EditionResults, EventResult } from "@/components/EditionResults"
 import { SplitPoint } from "@/lib/splits"
+import { EditionReports, RaceReport } from "@/components/EditionReports"
+import { VIEWER_ROLE } from "@/lib/viewer"
 
 type Race = {
     id: number
@@ -63,6 +65,9 @@ export default function EventDetailPage() {
     const [status, setStatus] = useState<"loading" | "notFound" | "error" | "ok">("loading")
     const [results, setResults] = useState<EventResult[]>([])
     const [splits, setSplits] = useState<Map<number, SplitPoint[]>>(new Map())
+    const [reports, setReports] = useState<RaceReport[]>([])
+    // レポートを書けるのはメンバー（閲覧用アカウント以外）のみ
+    const [canWrite, setCanWrite] = useState(false)
 
     useEffect(() => {
         const fetchEvent = async () => {
@@ -91,6 +96,18 @@ export default function EventDetailPage() {
             detail.event_editions.forEach(ed => ed.races.sort((a, b) => b.distance_km - a.distance_km))
             setEvent(detail)
             setStatus("ok")
+
+            const [{ data: { user } }, { data: reportData, error: reportError }] = await Promise.all([
+                supabase.auth.getUser(),
+                supabase
+                    .from('public_race_reports')
+                    .select('id, event_edition_id, event_id, held_on, author_name, author_gender, race_body, travel_body, updated_at, is_runner, is_mine')
+                    .eq('event_id', detail.id)
+                    .order('updated_at', { ascending: false }),
+            ])
+            setCanWrite(!!user && user.app_metadata?.role !== VIEWER_ROLE)
+            if (reportError) console.error('Error fetching reports:', reportError)
+            else setReports((reportData ?? []) as RaceReport[])
 
             // この大会に紐付いた記録（公開ビュー）と、そのラップ
             const { data: resData, error: resError } = await supabase
@@ -122,6 +139,12 @@ export default function EventDetailPage() {
         }
         fetchEvent()
     }, [id])
+
+    // データ読み込み後に描画されるため、URL の #edition-○ への移動を読み込み完了後に行う
+    useEffect(() => {
+        if (status !== "ok" || !window.location.hash) return
+        document.getElementById(window.location.hash.slice(1))?.scrollIntoView()
+    }, [status])
 
     return (
         <main className="min-h-screen flex flex-col items-center p-4">
@@ -166,7 +189,7 @@ export default function EventDetailPage() {
                         )}
                         <div className="flex flex-col gap-4">
                             {event.event_editions.map(ed => (
-                                <section key={ed.id}>
+                                <section key={ed.id} id={`edition-${ed.id}`} className="scroll-mt-4">
                                     <h3 className="font-bold text-sm mb-1">
                                         {ed.held_on ? formatDate(ed.held_on) : "開催日未定"}
                                         {ed.edition_number != null && ` 第${ed.edition_number}回`}
@@ -219,6 +242,11 @@ export default function EventDetailPage() {
                                         races={ed.races}
                                         results={results.filter(r => ed.races.some(ra => ra.id === r.race_id))}
                                         splits={splits}
+                                    />
+                                    <EditionReports
+                                        editionId={ed.id}
+                                        reports={reports.filter(r => r.event_edition_id === ed.id)}
+                                        canWrite={canWrite}
                                     />
                                 </section>
                             ))}
