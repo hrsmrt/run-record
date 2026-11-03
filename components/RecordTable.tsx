@@ -119,9 +119,14 @@ export default function RecordTable({ view, genderFilter, distance, raceType, da
         parts.push(text.substring(lastIndex, match.index))
       }
 
-      // リンクを追加
+      // リンクを追加（http/https 以外の URL はリンクにせずテキストのまま表示）
       const linkText = match[1]
       const url = match[2]
+      if (!/^https?:\/\//i.test(url)) {
+        parts.push(match[0])
+        lastIndex = linkRegex.lastIndex
+        continue
+      }
       parts.push(
         <a
           key={key++}
