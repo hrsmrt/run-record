@@ -4,6 +4,7 @@ import { Fragment, useState } from "react"
 import { formatTime } from "@/lib/utils"
 import { SplitPoint } from "@/lib/splits"
 import { SplitTable } from "@/components/SplitTable"
+import { RaceGapChart } from "@/components/RaceGapChart"
 
 export type EventResult = {
     id: number
@@ -84,6 +85,19 @@ export function EditionResults({ races, results, splits }: {
                     </table>
                 </div>
             </div>
+            {/* ラップを登録した人が2人以上いる種目は、人との差をグラフで表示 */}
+            {[...races].sort((a, b) => b.distance_km - a.distance_km).map(race => {
+                const runners = sorted
+                    .filter(r => r.race_id === race.id && (splits.get(r.id)?.length ?? 0) > 0)
+                    .map(r => ({ id: r.id, name: r.name, timeMs: r.time_ms, points: splits.get(r.id)! }))
+                if (runners.length < 2) return null
+                return (
+                    <div key={race.id} className="mt-3 bg-white p-2">
+                        {races.length > 1 && <p className="text-xs font-bold mb-1">{race.name}</p>}
+                        <RaceGapChart runners={runners} />
+                    </div>
+                )
+            })}
         </div>
     )
 }
