@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from "next/navigation"
 import { ExternalLink } from "lucide-react"
 import Link from "next/link"
+import { safeHttpUrl } from "@/lib/url"
 import { EditionResults, EventResult } from "@/components/EditionResults"
 import { SplitPoint } from "@/lib/splits"
 import { EditionReports, RaceReport } from "@/components/EditionReports"
@@ -171,7 +172,7 @@ export default function EventDetailPage() {
                             <dd className="break-all">
                                 {event.url ? (
                                     <a
-                                        href={event.url}
+                                        href={safeHttpUrl(event.url) ?? undefined}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="text-blue-600 hover:underline inline-flex items-center gap-1"

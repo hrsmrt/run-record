@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/client"
 import { useEffect, useState } from 'react'
 import { ExternalLink } from "lucide-react"
 import Link from "next/link"
+import { safeHttpUrl } from "@/lib/url"
 import { compareByPrefecture } from "@/lib/prefectures"
 
 type Event = {
@@ -63,7 +64,7 @@ export default function EventPage() {
                                         <td className="px-1 md:px-3 py-0 whitespace-normal">
                                             {event.url && (
                                                 <a
-                                                    href={event.url}
+                                                    href={safeHttpUrl(event.url) ?? undefined}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
                                                     className="text-blue-600 hover:underline inline-flex items-center gap-1"

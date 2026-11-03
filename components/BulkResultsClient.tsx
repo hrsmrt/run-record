@@ -96,13 +96,16 @@ export function BulkResultsClient() {
         if (!newGender) { setMessage({ text: "追加する人の性別を選んでください", isError: true }); return }
         if (members.some(m => m.name === name) && !confirm(`「${name}」は一覧にすでにいます。別人として追加しますか？`)) return
         setAdding(true)
-        const id = crypto.randomUUID()
-        const { error } = await createClient()
+        // ID は DB の既定値で作らせる（任意の ID を指定して既存メンバーと重複させないため）
+        const { data, error } = await createClient()
             .from("profiles_pending")
             // name（名前）と display_name（表示名。公開されるのはこちら）の両方に入れる
-            .insert({ id, name, display_name: name, gender: newGender, pending_auth: true })
+            .insert({ name, display_name: name, gender: newGender, pending_auth: true })
+            .select("id")
+            .single()
         setAdding(false)
         if (error) { setMessage({ text: `追加に失敗しました: ${error.message}`, isError: true }); return }
+        const id: string = data.id
         setMembers(prev => [...prev, { user_id: id, name, pending_auth: true }].sort((a, b) => (a.name ?? "").localeCompare(b.name ?? "")))
         setNewName("")
         setNewGender("")
