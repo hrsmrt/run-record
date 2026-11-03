@@ -5,6 +5,7 @@ import { useParams } from "next/navigation"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { useUnsavedWarning } from "@/lib/use-unsaved-warning"
+import { HALF_KM, formatDistance, formatElapsed, formatPace, isFull, parseElapsed, pointLabel } from "@/lib/splits"
 
 type Result = {
     id: number
@@ -19,42 +20,6 @@ type SplitRow = {
     distanceStr: string
     timeStr: string
 }
-
-// "1:23:45" / "23:45" / "23:45.6" → ミリ秒。不正なら null
-const parseElapsed = (str: string): number | null => {
-    const m = str.trim().match(/^(?:(\d{1,2}):)?(\d{1,2}):([0-5]\d)(?:\.(\d{1,2}))?$/)
-    if (!m) return null
-    const [, hh, mm, ss, cc] = m
-    if (hh !== undefined && Number(mm) > 59) return null
-    return (Number(hh ?? 0) * 3600 + Number(mm) * 60 + Number(ss)) * 1000 + (cc ? Number(cc.padEnd(2, "0")) * 10 : 0)
-}
-
-// ミリ秒 → "1:23:45" / "23:45"（1/100秒があれば ".67" を付ける）
-const formatElapsed = (ms: number) => {
-    const h = Math.floor(ms / 3600000)
-    const m = Math.floor((ms % 3600000) / 60000)
-    const s = Math.floor((ms % 60000) / 1000)
-    const cc = Math.floor((ms % 1000) / 10)
-    const base = h > 0
-        ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
-        : `${m}:${String(s).padStart(2, "0")}`
-    return cc > 0 ? `${base}.${String(cc).padStart(2, "0")}` : base
-}
-
-const formatPace = (msPerKm: number) => {
-    const total = Math.round(msPerKm / 1000)
-    return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}/km`
-}
-
-const isFull = (km: number) => Math.abs(km - 42.195) < 0.001
-const HALF_KM = 21.0975
-
-// 区間表示用の地点名
-const pointLabel = (km: number) =>
-    km === 0 ? "スタート" : Math.abs(km - HALF_KM) < 0.001 ? "ハーフ" : `${km}km`
-
-const formatDistance = (km: number) =>
-    Math.abs(km - 42.195) < 0.001 ? "フル" : Math.abs(km - 21.0975) < 0.001 ? "ハーフ" : `${km}km`
 
 export default function SplitsPage() {
     const { id } = useParams<{ id: string }>()

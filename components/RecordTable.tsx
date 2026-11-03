@@ -1,10 +1,11 @@
 "use client"
 
-import { useState, useEffect, ReactNode } from "react"
+import { Fragment, useState, useEffect, ReactNode } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { formatTime } from "@/lib/utils"
 import { ExternalLink } from "lucide-react"
 import Link from "next/link"
+import { SplitTableLoader } from "@/components/SplitTable"
 
 type RaceRecord = {
   id: number
@@ -16,6 +17,8 @@ type RaceRecord = {
   gender?: string
   comment?: string
   event_id: number | null
+  clever_index: number | null
+  has_splits: boolean
 }
 
 type Props = {
@@ -37,6 +40,7 @@ export default function RecordTable({ view, genderFilter, distance, raceType, da
   const [records, setRecords] = useState<RaceRecord[]>([])
   const [sortKey, setSortKey] = useState<SortKey>("date")
   const [sortAsc, setSortAsc] = useState(false)
+  const [openSplitId, setOpenSplitId] = useState<number | null>(null)
 
   useEffect(() => {
     const fetchRecords = async () => {
@@ -201,6 +205,14 @@ export default function RecordTable({ view, genderFilter, distance, raceType, da
                   日付 {sortKey === "date" ? (sortAsc ? "↑" : "↓") : ""}
                 </th>
                 <th
+                  className="px-1 md:px-3 py-0 cursor-pointer w-[10%] lg:w-[6%]"
+                  onClick={() => handleSort("clever_index")}
+                  title="RUNNET のクレバー指数"
+                >
+                  クレバー {sortKey === "clever_index" ? (sortAsc ? "↑" : "↓") : ""}
+                </th>
+                <th className="px-1 md:px-3 py-0 w-[9%] lg:w-[5%]">ラップ</th>
+                <th
                   className="px-1 md:px-3 py-0 cursor-pointer w-[18%]"
                   onClick={() => handleSort("comment")}
                 >
@@ -210,7 +222,8 @@ export default function RecordTable({ view, genderFilter, distance, raceType, da
             </thead>
             <tbody className="divide-y divide-gray-200">
               {sortedRecords.map((r, index) => (
-                <tr key={r.id}>
+                <Fragment key={r.id}>
+                <tr>
                   <td className="px-1 md:px-3 py-0 text-right">{index + 1}.</td>
                   <td className={`px-1 md:px-3 py-0 ${r.gender === "female" ? "text-red-600" : "text-black"}`}>
                     {r.name}
@@ -231,10 +244,30 @@ export default function RecordTable({ view, genderFilter, distance, raceType, da
                       : `${r.distance} km`}
                   </td>)}
                   <td className="px-1 md:px-3 py-0">{r.date.substring(0, 4)}/{r.date.substring(5, 7)}/{r.date.substring(8, 10)}</td>
+                  <td className="px-1 md:px-3 py-0 text-right">{r.clever_index ?? ""}</td>
+                  <td className="px-1 md:px-3 py-0 text-center">
+                    {r.has_splits && (
+                      <button
+                        onClick={() => setOpenSplitId(openSplitId === r.id ? null : r.id)}
+                        className="text-blue-600 hover:underline"
+                        aria-expanded={openSplitId === r.id}
+                      >
+                        {openSplitId === r.id ? "閉じる" : "表示"}
+                      </button>
+                    )}
+                  </td>
                   <td className="px-1 md:px-3 py-0 whitespace-normal">
                     {parseComment(r.comment)}
                   </td>
                 </tr>
+                {openSplitId === r.id && (
+                  <tr>
+                    <td colSpan={show_distance === true ? 9 : 8} className="px-1 md:px-3 pb-2">
+                      <SplitTableLoader resultId={r.id} />
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </table>

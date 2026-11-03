@@ -5,6 +5,8 @@ import { useEffect, useState } from 'react'
 import { useParams } from "next/navigation"
 import { ExternalLink } from "lucide-react"
 import Link from "next/link"
+import { EditionResults, EventResult } from "@/components/EditionResults"
+import { SplitPoint } from "@/lib/splits"
 
 type Race = {
     id: number
@@ -59,6 +61,8 @@ export default function EventDetailPage() {
     const { id } = useParams<{ id: string }>()
     const [event, setEvent] = useState<EventDetail | null>(null)
     const [status, setStatus] = useState<"loading" | "notFound" | "error" | "ok">("loading")
+    const [results, setResults] = useState<EventResult[]>([])
+    const [splits, setSplits] = useState<Map<number, SplitPoint[]>>(new Map())
 
     useEffect(() => {
         const fetchEvent = async () => {
@@ -87,6 +91,34 @@ export default function EventDetailPage() {
             detail.event_editions.forEach(ed => ed.races.sort((a, b) => b.distance_km - a.distance_km))
             setEvent(detail)
             setStatus("ok")
+
+            // この大会に紐付いた記録（公開ビュー）と、そのラップ
+            const { data: resData, error: resError } = await supabase
+                .from('public_results')
+                .select('id, name, gender, time_ms, clever_index, race_id')
+                .eq('event_id', detail.id)
+            if (resError) {
+                console.error('Error fetching results:', resError)
+                return
+            }
+            const eventResults = (resData ?? []) as EventResult[]
+            setResults(eventResults)
+            if (eventResults.length === 0) return
+            const { data: splitData, error: splitError } = await supabase
+                .from('result_splits')
+                .select('result_id, distance_km, elapsed_ms')
+                .in('result_id', eventResults.map(r => r.id))
+            if (splitError) {
+                console.error('Error fetching splits:', splitError)
+                return
+            }
+            const byResult = new Map<number, SplitPoint[]>()
+            for (const sp of splitData ?? []) {
+                const list = byResult.get(sp.result_id) ?? []
+                list.push({ km: Number(sp.distance_km), ms: sp.elapsed_ms })
+                byResult.set(sp.result_id, list)
+            }
+            setSplits(byResult)
         }
         fetchEvent()
     }, [id])
@@ -183,6 +215,11 @@ export default function EventDetailPage() {
                                             </div>
                                         </div>
                                     )}
+                                    <EditionResults
+                                        races={ed.races}
+                                        results={results.filter(r => ed.races.some(ra => ra.id === r.race_id))}
+                                        splits={splits}
+                                    />
                                 </section>
                             ))}
                         </div>
