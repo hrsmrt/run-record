@@ -25,8 +25,10 @@ export default function Page() {
 
   useEffect(() => {
     const fetchRecords = async () => {
-      const supabase = await createClient()
-      let query = supabase.from("results").select("*")
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setRecords([]); return }
+      let query = supabase.from("results").select("*").eq("user_id", user.id)
 
       if (distanceFilter !== "all") {
         if (distanceFilter === "other_under_100") {

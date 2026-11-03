@@ -50,7 +50,9 @@ export function EditRecordsClient() {
   // データ取得
   useEffect(() => {
     const fetchRecords = async () => {
-      let query = supabase.from("results").select("*")
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setRecords([]); return }
+      let query = supabase.from("results").select("*").eq("user_id", user.id)
       if (distanceFilter !== "all") {
         if (distanceFilter === "other_under_100") {
           query = query.lt("distance", 100).not("distance", "in", "(5,10,21.0975,42.195)")
