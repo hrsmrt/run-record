@@ -1,5 +1,3 @@
-"use client"
-
 import { ExternalLink } from "lucide-react"
 
 // リンクの型定義

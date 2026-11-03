@@ -1,5 +1,3 @@
-"use client"
-
 import Link from "next/link"
 import { Clock, Search, Link as LinkIcon, Calendar } from "lucide-react"
 
