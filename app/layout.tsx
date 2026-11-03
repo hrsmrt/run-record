@@ -52,9 +52,9 @@ export default function RootLayout({
         </ThemeProvider>
         <footer className="w-full flex flex-col md:flex-row items-center justify-center text-center text-xs py-16 gap-2 md:gap-8 border-t mx-auto">
           <div className="space-y-2">
-          <p>注：大会情報は確認済みのものを掲載していますが、ミスがある可能性もあるので公式情報を確認してください。ミスや掲載して欲しい大会情報があれば連絡ください。</p>
-          <p>今のところ、結果と大会情報は独立してます。</p>
-          <p>マラソン等大会結果記録・共有ツールです。知人の使用を想定しています。また、同一大会に参加した知人やサークルOBOGの記録も掲載することがあります。</p>
+          <p>マラソン等の大会結果を記録・共有する、メンバー限定のツールです。同じ大会に参加したメンバーやサークルOBOGの記録も掲載することがあります。</p>
+          <p>大会情報は確認済みのものを掲載していますが、誤りがある可能性もあるため、公式情報もご確認ください。誤りや掲載してほしい大会があればご連絡ください。</p>
+          <p>記録・ラップ・クレバー指数は、主に RUNNET の計測結果から転記しています。</p>
           <p>お問い合わせは村田(メール: <ObfuscatedEmail />)までお願いします。</p>
           <p>
             Powered by{" "}
