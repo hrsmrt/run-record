@@ -17,6 +17,8 @@ export type EventResult = {
 
 type RaceInfo = { id: number; name: string; distance_km: number }
 
+type SortKey = "name" | "time" | "clever"
+
 // 開催回の種目ごとに、知人の記録と（あれば）ラップを表示する
 export function EditionResults({ races, results, splits }: {
     races: RaceInfo[]
@@ -24,11 +26,33 @@ export function EditionResults({ races, results, splits }: {
     splits: Map<number, SplitPoint[]>
 }) {
     const [openId, setOpenId] = useState<number | null>(null)
+    const [sortKey, setSortKey] = useState<SortKey>("time")
+    const [sortAsc, setSortAsc] = useState(true)
     const raceById = new Map(races.map(r => [r.id, r]))
 
-    // 種目は距離の長い順、同じ種目内はタイム順
+    const handleSort = (key: SortKey) => {
+        if (sortKey === key) setSortAsc(!sortAsc)
+        // クレバー指数は高いほど良いので、最初は高い順（降順）
+        else { setSortKey(key); setSortAsc(key !== "clever") }
+    }
+    const arrow = (key: SortKey) => sortKey === key ? (sortAsc ? " ↑" : " ↓") : ""
+
+    // 選んだ列で並べた比較結果（クレバー指数がない記録は昇降順どちらでも最後）
+    const compareBy = (a: EventResult, b: EventResult) => {
+        if (sortKey === "clever") {
+            if (a.clever_index == null || b.clever_index == null) {
+                return a.clever_index == null ? (b.clever_index == null ? 0 : 1) : -1
+            }
+            return (sortAsc ? 1 : -1) * (a.clever_index - b.clever_index)
+        }
+        const diff = sortKey === "name" ? a.name.localeCompare(b.name) : a.time_ms - b.time_ms
+        return (sortAsc ? 1 : -1) * diff
+    }
+
+    // 種目（距離の長い順）ごとのまとまりは保ち、その中で選んだ列で並べる
     const sorted = [...results].sort((a, b) =>
         (raceById.get(b.race_id)?.distance_km ?? 0) - (raceById.get(a.race_id)?.distance_km ?? 0)
+        || compareBy(a, b)
         || a.time_ms - b.time_ms)
 
     if (sorted.length === 0) return null
@@ -42,9 +66,19 @@ export function EditionResults({ races, results, splits }: {
                         <thead>
                             <tr className="bg-white border-b">
                                 <th className="px-1 md:px-3 py-0 text-left">種目</th>
-                                <th className="px-1 md:px-3 py-0 text-left">名前</th>
-                                <th className="px-1 md:px-3 py-0 text-right">記録</th>
-                                <th className="px-1 md:px-3 py-0 text-right" title="RUNNET のクレバー指数">クレバー</th>
+                                <th className="px-1 md:px-3 py-0 text-left cursor-pointer" onClick={() => handleSort("name")}>
+                                    名前{arrow("name")}
+                                </th>
+                                <th className="px-1 md:px-3 py-0 text-right cursor-pointer" onClick={() => handleSort("time")}>
+                                    記録{arrow("time")}
+                                </th>
+                                <th
+                                    className="px-1 md:px-3 py-0 text-right cursor-pointer"
+                                    onClick={() => handleSort("clever")}
+                                    title="RUNNET のクレバー指数"
+                                >
+                                    クレバー{arrow("clever")}
+                                </th>
                                 <th className="px-1 md:px-3 py-0 text-center">ラップ</th>
                             </tr>
                         </thead>

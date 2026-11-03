@@ -114,7 +114,8 @@ export default function RecordTable({ view, genderFilter, distance, raceType, da
       setSortAsc(!sortAsc)
     } else {
       setSortKey(key)
-      setSortAsc(true)
+      // クレバー指数は高いほど良いので、最初は高い順（降順）
+      setSortAsc(key !== "clever_index")
     }
   }
 
