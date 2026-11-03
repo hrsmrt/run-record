@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { formatTime } from "@/lib/utils"
+import Link from "next/link"
 
 type Record = {
   id: number
@@ -76,7 +77,7 @@ export default function Page() {
   })
 
   return (
-    <div className="max-w-4xl mx-auto p-1 bg-white text-black text-[10px] md:text-base overflow-x-auto">
+    <div className="max-w-6xl mx-auto p-1 bg-white text-black text-[10px] md:text-base overflow-x-auto">
       {/* 絞り込みUI */}
       <div className="flex gap-4 mb-4">
         <select
@@ -126,6 +127,7 @@ export default function Page() {
             <th className="px-1 py-0 cursor-pointer text-center" onClick={() => handleSort("date")}>
               日付 {sortKey === "date" ? (sortAsc ? "↑" : "↓") : ""}
             </th>
+            <th className="px-1 py-0 text-center">ラップ</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-200">
@@ -144,6 +146,9 @@ export default function Page() {
                       : `${r.distance} km`}
                   </td>
                   <td className="px-1 md:px-3 py-0">{r.date.substring(0, 4)}/{r.date.substring(5, 7)}/{r.date.substring(8, 10)}</td>
+                  <td className="px-1 md:px-3 py-0 text-center">
+                    <Link href={`/records/${r.id}/splits`} className="text-blue-600 hover:underline">入力</Link>
+                  </td>
                 </tr>
               ))}
             </tbody>

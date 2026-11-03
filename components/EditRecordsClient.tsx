@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { RaceDatalist, RaceInput, useRaceOptions } from "@/components/RaceInput"
 
@@ -143,7 +144,7 @@ export function EditRecordsClient() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto p-4">
+    <div className="max-w-[1400px] mx-auto p-4">
       {/* フィルター */}
       <div className="flex gap-4 mb-4">
         <select value={distanceFilter} onChange={e => setDistanceFilter(e.target.value)} className="px-2 py-1 rounded">
@@ -179,6 +180,7 @@ export function EditRecordsClient() {
         <table className="w-full min-w-[1300px] table-auto text-left border-collapse">
           <thead>
             <tr>
+              <th className="px-2 py-1">ラップ</th>
               <th className="px-2 py-1 cursor-pointer" onClick={() => handleSort("time_ms")}>
                 時間 {sortKey==="time_ms" ? (sortAsc?"↑":"↓"):""}
               </th>
@@ -207,6 +209,7 @@ export function EditRecordsClient() {
           <tbody>
             {sortedRecords.map(record => (
               <tr key={record.id}>
+                <td className="px-2 py-1"><Link href={`/records/${record.id}/splits`} className="text-blue-600 hover:underline">入力</Link></td>
                 <td className="px-2 py-1"><input className="w-28 px-1" value={record.timeStr} onChange={e => setRecords(prev => prev.map(r => r.id===record.id?{...r,timeStr:e.target.value}:r))}/></td>
                 <td className="px-2 py-1">
                   <RaceInput
