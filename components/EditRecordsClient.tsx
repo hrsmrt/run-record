@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
+import { RaceDatalist, RaceInput, useRaceOptions } from "@/components/RaceInput"
 
 type Record = {
   id: number
@@ -12,9 +13,11 @@ type Record = {
   distance: number
   date: string
   comment?: string
+  race_id: number | null
+  clever_index: number | null
 }
 
-type RecordWithTimeStr = Record & { timeStr: string }
+type RecordWithTimeStr = Record & { timeStr: string; cleverStr: string }
 
 export function EditRecordsClient() {
   const [records, setRecords] = useState<RecordWithTimeStr[]>([])
@@ -23,6 +26,7 @@ export function EditRecordsClient() {
   const [distanceFilter, setDistanceFilter] = useState<string>("all")
   const [raceTypeFilter, setRaceTypeFilter] = useState<string>("all")
   const [message, setMessage] = useState("")
+  const { options: raceOptions, error: raceError } = useRaceOptions()
 
   const supabase = createClient()
 
@@ -65,11 +69,19 @@ export function EditRecordsClient() {
       if (raceTypeFilter !== "all") query = query.eq("race_type", raceTypeFilter)
 
       const { data } = await query
-      const formatted = (data ?? []).map(r => ({ ...r, timeStr: msToTime(r.time_ms) }))
+      const formatted = (data ?? []).map(r => ({
+        ...r,
+        timeStr: msToTime(r.time_ms),
+        cleverStr: r.clever_index == null ? "" : String(r.clever_index),
+      }))
       setRecords(formatted)
     }
     fetchRecords()
   }, [distanceFilter, raceTypeFilter, supabase])
+
+  const updateRow = (id: number, patch: Partial<RecordWithTimeStr>) => {
+    setRecords(prev => prev.map(r => r.id === id ? { ...r, ...patch } : r))
+  }
 
   // ソート処理
   const handleSort = (key: keyof Record) => {
@@ -95,19 +107,24 @@ export function EditRecordsClient() {
       race_name: r.race_name,
       race_type: r.race_type,
       date: r.date,
-      comment: r.comment
+      comment: r.comment,
+      race_id: r.race_id,
+      clever_index: r.cleverStr === "" ? null : Number(r.cleverStr),
     }))
     const errors: string[] = []
 
     for (const u of updates) {
       if (isNaN(u.time_ms)) { errors.push(`ID ${u.id} の時間が不正です`); continue }
+      if (u.clever_index !== null && isNaN(u.clever_index)) { errors.push(`ID ${u.id} のクレバー指数が不正です`); continue }
       const { error } = await supabase.from("results").update({
         time_ms: u.time_ms,
         distance: u.distance,
         race_name: u.race_name,
         race_type: u.race_type,
         date: u.date,
-        comment: u.comment
+        comment: u.comment,
+        race_id: u.race_id,
+        clever_index: u.clever_index,
       }).eq("id", u.id)
       if (error) errors.push(`ID ${u.id}: ${error.message}`)
     }
@@ -151,14 +168,21 @@ export function EditRecordsClient() {
 
       <button onClick={handleSaveAll} className="mb-4 px-4 py-2 bg-blue-600 text-white rounded">保存</button>
       {message && <p className="mb-2">{message}</p>}
+      {raceError && <p className="mb-2 text-red-600">大会情報の読み込みに失敗しました: {raceError}</p>}
+      <p className="mb-2 text-sm text-gray-500">
+        「大会情報」で登録済みの大会を選ぶと、大会名・日付・距離が大会情報の値になります（紐付け中は大会名・日付は編集不可）
+      </p>
 
+      {!raceOptions ? <p>読み込み中...</p> : (
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[1000px] table-auto text-left border-collapse">
+        <RaceDatalist id="race-options" options={raceOptions} />
+        <table className="w-full min-w-[1300px] table-auto text-left border-collapse">
           <thead>
             <tr>
               <th className="px-2 py-1 cursor-pointer" onClick={() => handleSort("time_ms")}>
                 時間 {sortKey==="time_ms" ? (sortAsc?"↑":"↓"):""}
               </th>
+              <th className="px-2 py-1">大会情報</th>
               <th className="px-2 py-1 cursor-pointer" onClick={() => handleSort("race_name")}>
                 大会 {sortKey==="race_name" ? (sortAsc?"↑":"↓"):""}
               </th>
@@ -171,6 +195,9 @@ export function EditRecordsClient() {
               <th className="px-2 py-1 cursor-pointer" onClick={() => handleSort("date")}>
                 日付 {sortKey==="date" ? (sortAsc?"↑":"↓"):""}
               </th>
+              <th className="px-2 py-1 cursor-pointer" onClick={() => handleSort("clever_index")}>
+                クレバー指数 {sortKey==="clever_index" ? (sortAsc?"↑":"↓"):""}
+              </th>
               <th className="px-2 py-1 cursor-pointer" onClick={() => handleSort("comment")}>
                 コメント {sortKey==="comment" ? (sortAsc?"↑":"↓"):""}
               </th>
@@ -181,7 +208,18 @@ export function EditRecordsClient() {
             {sortedRecords.map(record => (
               <tr key={record.id}>
                 <td className="px-2 py-1"><input className="w-28 px-1" value={record.timeStr} onChange={e => setRecords(prev => prev.map(r => r.id===record.id?{...r,timeStr:e.target.value}:r))}/></td>
-                <td className="px-2 py-1"><input className="w-full px-1" value={record.race_name} onChange={e => setRecords(prev => prev.map(r => r.id===record.id?{...r,race_name:e.target.value}:r))}/></td>
+                <td className="px-2 py-1">
+                  <RaceInput
+                    listId="race-options"
+                    options={raceOptions}
+                    value={record.race_id}
+                    onChange={race => updateRow(record.id, race
+                      ? { race_id: race.id, race_name: race.eventName, date: race.heldOn ?? record.date, distance: race.distanceKm }
+                      : { race_id: null })}
+                    className="w-72 px-1 border rounded"
+                  />
+                </td>
+                <td className="px-2 py-1"><input className={`w-full px-1 ${record.race_id ? "bg-gray-100 text-gray-500" : ""}`} readOnly={record.race_id != null} value={record.race_name} onChange={e => setRecords(prev => prev.map(r => r.id===record.id?{...r,race_name:e.target.value}:r))}/></td>
                 <td className="px-2 py-1"><input className="w-20 px-1" type="number" value={record.distance} onChange={e => setRecords(prev => prev.map(r => r.id===record.id?{...r,distance:Number(e.target.value)}:r))}/></td>
                 <td className="px-2 py-1">
                   <select value={record.race_type} onChange={e => setRecords(prev => prev.map(r => r.id===record.id?{...r,race_type:e.target.value}:r))}>
@@ -192,7 +230,8 @@ export function EditRecordsClient() {
                     <option value="time">時間走</option>
                   </select>
                 </td>
-                <td className="px-2 py-1 w-36"><input type="date" className="w-36 px-1" value={record.date} onChange={e => setRecords(prev => prev.map(r => r.id===record.id?{...r,date:e.target.value}:r))}/></td>
+                <td className="px-2 py-1 w-36"><input type="date" className={`w-36 px-1 ${record.race_id ? "bg-gray-100 text-gray-500" : ""}`} readOnly={record.race_id != null} value={record.date} onChange={e => setRecords(prev => prev.map(r => r.id===record.id?{...r,date:e.target.value}:r))}/></td>
+                <td className="px-2 py-1"><input className="w-20 px-1" inputMode="decimal" value={record.cleverStr} onChange={e => updateRow(record.id, { cleverStr: e.target.value })}/></td>
                 <td className="px-2 py-1"><input className="w-full px-1" value={record.comment??""} onChange={e => setRecords(prev => prev.map(r => r.id===record.id?{...r,comment:e.target.value}:r))}/></td>
                 <td className="px-2 py-1"><button onClick={()=>handleDelete(record.id)} className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700">削除</button></td>
               </tr>
@@ -200,6 +239,7 @@ export function EditRecordsClient() {
           </tbody>
         </table>
       </div>
+      )}
     </div>
   )
 }
