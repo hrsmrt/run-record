@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { hasEnvVars } from "../utils";
+import { VIEWER_ROLE } from "../viewer";
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -47,14 +48,26 @@ export async function updateSession(request: NextRequest) {
   const { data } = await supabase.auth.getClaims();
   const user = data?.claims;
 
-  // Redirect only for protected routes
+  // メンバー限定: /auth/* と robots.txt 以外はログイン必須
   const pathname = request.nextUrl.pathname;
-  const requiresAuth = pathname.startsWith("/records") || pathname.startsWith("/profile");
+  const isPublic = pathname.startsWith("/auth") || pathname === "/robots.txt";
 
-  if (requiresAuth && !user && !pathname.startsWith("/auth")) {
-    // No user on a protected route -> redirect to login
+  if (!isPublic && !user) {
     const url = request.nextUrl.clone();
     url.pathname = "/auth/login";
+    return NextResponse.redirect(url);
+  }
+
+  // 閲覧用共有アカウントは記録・プロフィール・大会編集・パスワード変更に入れない
+  const isViewer = user?.app_metadata?.role === VIEWER_ROLE;
+  const viewerBlocked =
+    pathname.startsWith("/records") ||
+    pathname.startsWith("/profile") ||
+    pathname.startsWith("/event/edit") ||
+    pathname.startsWith("/auth/update-password");
+  if (isViewer && viewerBlocked) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/";
     return NextResponse.redirect(url);
   }
 

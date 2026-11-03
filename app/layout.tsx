@@ -13,6 +13,8 @@ export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
   title: "Runner’s Record",
   description: "",
+  // メンバー限定サイトのため検索エンジンに登録させない
+  robots: { index: false, follow: false, nocache: true },
 };
 
 const geistSans = Geist({

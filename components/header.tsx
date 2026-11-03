@@ -4,9 +4,10 @@ import { useState, useRef, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 import { Menu } from "lucide-react";
+import { VIEWER_ROLE } from "@/lib/viewer";
 
 export function Header() {
-  const [user, setUser] = useState<{ id: string; email: string; isAdmin: boolean } | null>(null);
+  const [user, setUser] = useState<{ id: string; email: string; isAdmin: boolean; isViewer: boolean } | null>(null);
   const [mounted, setMounted] = useState(false); // クライアント描画確認
   const ref = useRef<HTMLDivElement>(null);
 
@@ -18,7 +19,12 @@ export function Header() {
     const fetchUser = async () => {
       const { data: { user }, error } = await supabase.auth.getUser();
       if (user && !error) {
-        setUser({ id: user.id, email: user.email ?? "", isAdmin: user.app_metadata?.role === "admin" });
+        setUser({
+          id: user.id,
+          email: user.email ?? "",
+          isAdmin: user.app_metadata?.role === "admin",
+          isViewer: user.app_metadata?.role === VIEWER_ROLE,
+        });
       }
     };
 
@@ -35,6 +41,8 @@ export function Header() {
     const supabase = createClient();
     await supabase.auth.signOut();
     setUser(null);
+    // サイト全体がログイン必須のため、ログイン画面へ移動
+    window.location.href = "/auth/login";
   };
 
   // 外側クリックで閉じる
@@ -101,7 +109,7 @@ export function Header() {
                     リンク集
                   </Link>
                 </li>
-                {user && ( <>
+                {user && !user.isViewer && ( <>
                 <li>
                   <Link
                     href="/profile"
