@@ -77,8 +77,8 @@ export default function MfaPage() {
             setError("コードが違うか、有効期限が切れています。認証アプリの最新のコードを入力してください")
             return
         }
-        router.push(nextPath)
-        router.refresh()
+        // 2段階認証済みのトークンで確実に読み込まれるよう、ページ全体を読み込み直して移動する
+        window.location.assign(nextPath)
     }
 
     return (

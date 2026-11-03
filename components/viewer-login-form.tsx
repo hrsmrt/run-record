@@ -12,7 +12,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { VIEWER_EMAIL } from "@/lib/viewer";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 // 閲覧用パスワードだけで、共有の閲覧用アカウントにログインする
@@ -20,7 +19,6 @@ export function ViewerLoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const router = useRouter();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,8 +35,8 @@ export function ViewerLoginForm() {
       setIsLoading(false);
       return;
     }
-    router.push("/");
-    router.refresh();
+    // 先読み済みの「未ログイン時の転送」を使わないよう、ページ全体を読み込み直して移動する
+    window.location.assign("/");
   };
 
   return (

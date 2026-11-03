@@ -13,7 +13,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 export function LoginForm({
@@ -24,7 +23,6 @@ export function LoginForm({
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const router = useRouter();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,11 +38,12 @@ export function LoginForm({
       if (error) throw error;
       // 2段階認証を登録済みならコード入力へ
       const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      // 先読み済みの「未ログイン時の転送」を使わないよう、ページ全体を読み込み直して移動する
       if (aal?.nextLevel === "aal2" && aal.currentLevel !== "aal2") {
-        router.push("/auth/mfa");
+        window.location.assign("/auth/mfa");
         return;
       }
-      router.push("/");
+      window.location.assign("/");
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "";
       setError(
