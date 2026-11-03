@@ -96,7 +96,13 @@ export default function RecordTable({ view, genderFilter, distance, raceType, da
     .sort((a, b) => {
       const valA = a[sortKey]
       const valB = b[sortKey]
-      if (valA === valB) return 0
+      if (valA === valB) {
+        // 日付順のときは、同じ日の中で大会ごとにまとめ、大会内は距離の長い順・タイム順
+        if (sortKey === "date") {
+          return a.race_name.localeCompare(b.race_name) || b.distance - a.distance || a.time_ms - b.time_ms
+        }
+        return 0
+      }
       if (valA === null || valA === undefined) return 1
       if (valB === null || valB === undefined) return -1
       return sortAsc ? (valA > valB ? 1 : -1) : valA > valB ? -1 : 1
