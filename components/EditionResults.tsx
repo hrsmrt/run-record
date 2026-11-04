@@ -26,8 +26,8 @@ export function EditionResults({ races, results, splits }: {
     splits: Map<number, SplitPoint[]>
 }) {
     const [openId, setOpenId] = useState<number | null>(null)
-    const [sortKey, setSortKey] = useState<SortKey>("time")
-    const [sortAsc, setSortAsc] = useState(true)
+    const [sortKey, setSortKey] = useState<SortKey>("clever")
+    const [sortAsc, setSortAsc] = useState(false)
     const raceById = new Map(races.map(r => [r.id, r]))
 
     const handleSort = (key: SortKey) => {
