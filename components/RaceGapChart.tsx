@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState } from "react"
 import { LineChart } from "@mui/x-charts/LineChart"
 import { ChartsTooltipContainer, ChartsTooltipContainerProps, useAxesTooltip } from "@mui/x-charts/ChartsTooltip"
-import { SplitPoint, pointLabel } from "@/lib/splits"
+import { SplitPoint, formatElapsed, pointLabel } from "@/lib/splits"
 
 export type GapRunner = {
     id: number
@@ -45,29 +45,33 @@ const formatGap = (sec: number) => {
 }
 
 type Basis = "net" | "gross"
+// gap: 基準ペースとの差、rank: メンバー内の順位
+type Mode = "gap" | "rank"
 
 // 差（秒）の表示文。正 = 遅れ
 const gapText = (v: number) => Math.abs(v) < 0.5 ? "基準と同タイム" : `${formatGap(v)} ${v > 0 ? "遅れ" : "先行"}`
 
-type RankItem = { id: string; name: string; value: number }
+// value は小さいほど前（差の秒数または順位）、text は表示する値
+type RankItem = { id: string; name: string; value: number; text: string }
 
-// ある地点での順位つき一覧（その地点に通過タイムがある人のみ、差が小さい = 前にいる順）
+// ある地点での順位つき一覧（その地点に通過タイムがある人のみ、前にいる順。同タイムは同順位）
 function RankList({ km, items }: { km: number; items: RankItem[] }) {
     const styles = useContext(LineStyleContext)
     const ranked = [...items].sort((a, b) => a.value - b.value)
+    const rankOf = (v: number) => 1 + items.filter(it => it.value < v).length
     return (
         <div className="bg-white/95 text-black border rounded shadow-md p-2 text-xs md:text-sm">
             <p className="font-bold mb-1">{pointLabel(km)} 時点</p>
             <table>
                 <tbody>
-                    {ranked.map((it, i) => (
+                    {ranked.map(it => (
                         <tr key={it.id}>
-                            <td className="pr-2 text-right">{i + 1}位</td>
+                            <td className="pr-2 text-right">{rankOf(it.value)}位</td>
                             <td className="pr-2 whitespace-nowrap">
                                 {styles.get(it.id) && <LineSample style={styles.get(it.id)!} />}
                                 {it.name}
                             </td>
-                            <td className="text-right font-mono whitespace-nowrap">{gapText(it.value)}</td>
+                            <td className="text-right font-mono whitespace-nowrap">{it.text}</td>
                         </tr>
                     ))}
                 </tbody>
@@ -83,7 +87,7 @@ function RankTooltip(props: ChartsTooltipContainerProps) {
     const { axisValue, seriesItems } = tooltips[0]
     const items = seriesItems
         .filter(it => typeof it.value === "number")
-        .map(it => ({ id: String(it.seriesId), name: it.formattedLabel ?? "", value: it.value as number }))
+        .map(it => ({ id: String(it.seriesId), name: it.formattedLabel ?? "", value: it.value as number, text: it.formattedValue ?? "" }))
     if (items.length === 0) return null
     return (
         <ChartsTooltipContainer {...props}>
@@ -116,13 +120,44 @@ const basisPoints = (points: SplitPoint[], basis: Basis) => {
     return [{ km: 0, ms: basis === "net" ? 0 : loss }, ...after].sort((a, b) => a.km - b.km)
 }
 
-// 同じ種目でラップを登録した人どうしを、基準ペース（初期値は最速の人の平均ペース）との差で比較する
+// ゴールの通過タイム（ゴール地点のラップがなければ記録から補う。記録はネット）
+const withFinish = (points: { km: number; ms: number }[], r: GapRunner, basis: Basis, distanceKm: number) =>
+    points.some(p => Math.abs(p.km - distanceKm) < 0.001)
+        ? points
+        : [...points, { km: distanceKm, ms: basis === "net" ? r.timeMs : r.timeMs + startLoss(r.points) }]
+
+// 押した方が選ばれる切り替えボタン
+function Toggle<T extends string>({ label, value, options, onChange }: {
+    label: string
+    value: T
+    options: [T, string][]
+    onChange: (v: T) => void
+}) {
+    return (
+        <div className="flex rounded border overflow-hidden" role="group" aria-label={label}>
+            {options.map(([v, text]) => (
+                <button
+                    key={v}
+                    onClick={() => onChange(v)}
+                    aria-pressed={value === v}
+                    className={`px-2 py-0.5 ${value === v ? "bg-blue-600 text-white" : "bg-white hover:bg-gray-100"}`}
+                >
+                    {text}
+                </button>
+            ))}
+        </div>
+    )
+}
+
+// 同じ種目でラップを登録した人どうしを比較する
+// 差: 基準ペース（初期値は最速の人の平均ペース）との差、順位: ラップのある人の中での各地点の順位
 export function RaceGapChart({ runners, distanceKm }: { runners: GapRunner[]; distanceKm: number }) {
     // ラップのある人全員をゴールタイム順に。線の色・種類はこの順で固定する
     const shown = [...runners].sort((a, b) => a.timeMs - b.timeMs)
     const styles = new Map(shown.map((r, i) => [String(r.id), lineStyleAt(i)]))
     const [refId, setRefId] = useState(shown[0]?.id)
     const [basis, setBasis] = useState<Basis>("net")
+    const [mode, setMode] = useState<Mode>("gap")
     const coarsePointer = useCoarsePointer()
     // スマホでタップした地点（横軸のデータ番号）。もう一度タップで閉じる
     const [tappedIndex, setTappedIndex] = useState<number | null>(null)
@@ -133,48 +168,81 @@ export function RaceGapChart({ runners, distanceKm }: { runners: GapRunner[]; di
     // （記録はネット。グロスでは基準の人のロスを足したタイムを使う）
     const refFinishMs = basis === "net" ? ref.timeMs : ref.timeMs + startLoss(ref.points)
     const refPaceMsPerKm = refFinishMs / distanceKm
-    // 各人の、自分の通過地点での差（秒）。正 = 基準ペースより遅れ
-    const gaps = shown.map(r => {
-        const byKm = new Map<number, number>()
-        // スタート（0km）も含めて、全員の線をスタートから結ぶ（グロスはロスの分だけ遅れて始まる）
-        for (const p of basisPoints(r.points, basis)) {
-            byKm.set(p.km, (p.ms - refPaceMsPerKm * p.km) / 1000)
+    // 各人の、自分の通過地点での値（差なら秒、正 = 基準ペースより遅れ。順位なら何位か）と表示する文
+    const values: Map<number, number>[] = []
+    const texts: Map<number, string>[] = []
+    if (mode === "gap") {
+        for (const r of shown) {
+            const v = new Map<number, number>()
+            const t = new Map<number, string>()
+            // スタート（0km）も含めて、全員の線をスタートから結ぶ（グロスはロスの分だけ遅れて始まる）
+            for (const p of basisPoints(r.points, basis)) {
+                const gap = (p.ms - refPaceMsPerKm * p.km) / 1000
+                v.set(p.km, gap)
+                t.set(p.km, gapText(gap))
+            }
+            values.push(v)
+            texts.push(t)
         }
-        return byKm
-    })
-    const xs = [...new Set(gaps.flatMap(g => [...g.keys()]))].sort((a, b) => a - b)
+    } else {
+        // ネットのスタートは全員 0 で順位がつかないため除く（グロスはスタートライン通過の順）
+        const elapsed = shown.map(r => withFinish(
+            basisPoints(r.points, basis).filter(p => basis === "gross" || p.km > 0), r, basis, distanceKm))
+        for (const pts of elapsed) {
+            const v = new Map<number, number>()
+            const t = new Map<number, string>()
+            for (const p of pts) {
+                // その地点のタイムがある人の中での順位（同タイムは同順位）
+                const faster = elapsed.filter(o => o.some(q => q.km === p.km && q.ms < p.ms)).length
+                v.set(p.km, faster + 1)
+                t.set(p.km, formatElapsed(p.ms))
+            }
+            values.push(v)
+            texts.push(t)
+        }
+    }
+    const xs = [...new Set(values.flatMap(g => [...g.keys()]))].sort((a, b) => a - b)
     // スタートの点しかない（通過地点が未入力）ならグラフを出さない
     if (xs.length <= 1) return null
 
     return (
         <div className="mt-2">
             <div className="flex flex-wrap items-center gap-2 text-xs md:text-sm mb-1">
-                <span className="font-bold text-gray-600">基準ペースとの差</span>
-                <label className="flex items-center gap-1">
-                    基準ペース:
-                    <select
-                        value={ref.id}
-                        onChange={e => setRefId(Number(e.target.value))}
-                        className="border rounded px-1 py-0.5 bg-white"
-                    >
-                        {shown.map(r => <option key={r.id} value={r.id}>{r.name}の平均ペース</option>)}
-                    </select>
-                </label>
-                <div className="flex rounded border overflow-hidden" role="group" aria-label="比較するタイム">
-                    {(["net", "gross"] as const).map(b => (
-                        <button
-                            key={b}
-                            onClick={() => setBasis(b)}
-                            aria-pressed={basis === b}
-                            className={`px-2 py-0.5 ${basis === b ? "bg-blue-600 text-white" : "bg-white hover:bg-gray-100"}`}
+                <Toggle
+                    label="グラフの種類"
+                    value={mode}
+                    options={[["gap", "基準ペースとの差"], ["rank", "順位の変動"]]}
+                    onChange={m => { setMode(m); setTappedIndex(null) }}
+                />
+                {mode === "gap" && (
+                    <label className="flex items-center gap-1">
+                        基準ペース:
+                        <select
+                            value={ref.id}
+                            onChange={e => setRefId(Number(e.target.value))}
+                            className="border rounded px-1 py-0.5 bg-white"
                         >
-                            {b === "net" ? "ネット" : "グロス"}
-                        </button>
-                    ))}
-                </div>
+                            {shown.map(r => <option key={r.id} value={r.id}>{r.name}の平均ペース</option>)}
+                        </select>
+                    </label>
+                )}
+                <Toggle
+                    label="比較するタイム"
+                    value={basis}
+                    options={[["net", "ネット"], ["gross", "グロス"]]}
+                    onChange={setBasis}
+                />
                 <span className="text-gray-500">
-                    上が先行・下が遅れ。0 は基準ペースで均等に走った場合
-                    {basis === "net" ? "（スタートライン通過から）" : "（号砲から。スタートはロスの分だけ遅れて始まる）"}
+                    {mode === "gap"
+                        ? <>
+                            上が先行・下が遅れ。0 は基準ペースで均等に走った場合
+                            {basis === "net" ? "（スタートライン通過から）" : "（号砲から。スタートはロスの分だけ遅れて始まる）"}
+                        </>
+                        : <>
+                            ラップを登録した人の中での、各地点の通過順位
+                            {basis === "net" ? "（スタートライン通過からのタイム順）" : "（号砲からのタイム順。スタートはライン通過の順）"}
+                            。その地点のタイムがない人は除いて数える
+                        </>}
                     {coarsePointer && "。タップでその地点の順位を表示（もう一度タップで閉じる）"}
                 </span>
             </div>
@@ -197,18 +265,28 @@ export function RaceGapChart({ runners, distanceKm }: { runners: GapRunner[]; di
                             min: 0,
                             valueFormatter: (km: number) => pointLabel(km),
                         }]}
-                        yAxis={[{
-                            reverse: true,
-                            valueFormatter: (sec: number) => sec === 0 ? "0" : `${sec > 0 ? "+" : "-"}${formatGap(sec)}`,
-                        }]}
+                        yAxis={[mode === "gap"
+                            ? {
+                                reverse: true,
+                                valueFormatter: (sec: number) => sec === 0 ? "0" : `${sec > 0 ? "+" : "-"}${formatGap(sec)}`,
+                            }
+                            : {
+                                // 1位を上に、目盛りは整数の順位のみ
+                                reverse: true,
+                                min: 1,
+                                max: shown.length,
+                                tickMinStep: 1,
+                                valueFormatter: (rank: number) => `${rank}位`,
+                            }]}
                         series={shown.map((r, i) => ({
                             id: String(r.id),
                             label: r.name,
                             color: styles.get(String(r.id))!.color,
-                            data: xs.map(x => gaps[i].get(x) ?? null),
+                            data: xs.map(x => values[i].get(x) ?? null),
                             connectNulls: true,
                             showMark: true,
-                            valueFormatter: (v: number | null) => v === null ? "" : gapText(v),
+                            valueFormatter: (v: number | null, { dataIndex }: { dataIndex: number }) =>
+                                v === null ? "" : texts[i].get(xs[dataIndex]) ?? "",
                         }))}
                         slots={{ tooltip: RankTooltip }}
                         slotProps={{
@@ -234,8 +312,8 @@ export function RaceGapChart({ runners, distanceKm }: { runners: GapRunner[]; di
                         <RankList
                             km={xs[tappedIndex]}
                             items={shown.flatMap((r, i) => {
-                                const v = gaps[i].get(xs[tappedIndex])
-                                return v === undefined ? [] : [{ id: String(r.id), name: r.name, value: v }]
+                                const v = values[i].get(xs[tappedIndex])
+                                return v === undefined ? [] : [{ id: String(r.id), name: r.name, value: v, text: texts[i].get(xs[tappedIndex]) ?? "" }]
                             })}
                         />
                     </div>
