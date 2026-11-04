@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState } from "react"
 import { LineChart } from "@mui/x-charts/LineChart"
 import { ChartsTooltipContainer, ChartsTooltipContainerProps, useAxesTooltip } from "@mui/x-charts/ChartsTooltip"
-import { SplitPoint, formatElapsed, pointLabel } from "@/lib/splits"
+import { SplitPoint, formatElapsed, formatPace, pointLabel } from "@/lib/splits"
 
 export type GapRunner = {
     id: number
@@ -45,23 +45,27 @@ const formatGap = (sec: number) => {
 }
 
 type Basis = "net" | "gross"
-// gap: 基準ペースとの差、rank: メンバー内の順位
-type Mode = "gap" | "rank"
+// gap: 基準ペースとの差、rank: メンバー内の順位、lap: 区間ごとのペース
+type Mode = "gap" | "rank" | "lap"
+
+// ツールチップの見出しをグラフの種類で変えるための受け渡し
+const ModeContext = createContext<Mode>("gap")
 
 // 差（秒）の表示文。正 = 遅れ
 const gapText = (v: number) => Math.abs(v) < 0.5 ? "基準と同タイム" : `${formatGap(v)} ${v > 0 ? "遅れ" : "先行"}`
 
-// value は小さいほど前（差の秒数または順位）、text は表示する値
+// value は小さいほど前（差の秒数・順位・ペース）、text は表示する値
 type RankItem = { id: string; name: string; value: number; text: string }
 
 // ある地点での順位つき一覧（その地点に通過タイムがある人のみ、前にいる順。同タイムは同順位）
 function RankList({ km, items }: { km: number; items: RankItem[] }) {
     const styles = useContext(LineStyleContext)
+    const mode = useContext(ModeContext)
     const ranked = [...items].sort((a, b) => a.value - b.value)
     const rankOf = (v: number) => 1 + items.filter(it => it.value < v).length
     return (
         <div className="bg-white/95 text-black border rounded shadow-md p-2 text-xs md:text-sm">
-            <p className="font-bold mb-1">{pointLabel(km)} 時点</p>
+            <p className="font-bold mb-1">{mode === "lap" ? `${pointLabel(km)}までの区間` : `${pointLabel(km)} 時点`}</p>
             <table>
                 <tbody>
                     {ranked.map(it => (
@@ -150,7 +154,8 @@ function Toggle<T extends string>({ label, value, options, onChange }: {
 }
 
 // 同じ種目でラップを登録した人どうしを比較する
-// 差: 基準ペース（初期値は最速の人の平均ペース）との差、順位: ラップのある人の中での各地点の順位
+// 差: 基準ペース（初期値は最速の人の平均ペース）との差、順位: 表示中の人の中での各地点の順位、
+// ラップ: 区間ごとのペース（区間の長さが人によって違っても比べられるよう 1km あたりにする）
 export function RaceGapChart({ runners, distanceKm }: { runners: GapRunner[]; distanceKm: number }) {
     // ラップのある人全員をゴールタイム順に。線の色・種類はこの順で固定する
     const shown = [...runners].sort((a, b) => a.timeMs - b.timeMs)
@@ -158,21 +163,40 @@ export function RaceGapChart({ runners, distanceKm }: { runners: GapRunner[]; di
     const [refId, setRefId] = useState(shown[0]?.id)
     const [basis, setBasis] = useState<Basis>("net")
     const [mode, setMode] = useState<Mode>("gap")
+    // グラフに出さない人（凡例のクリックで切り替え）
+    const [hidden, setHidden] = useState<Set<number>>(new Set())
     const coarsePointer = useCoarsePointer()
     // スマホでタップした地点（横軸のデータ番号）。もう一度タップで閉じる
     const [tappedIndex, setTappedIndex] = useState<number | null>(null)
     const ref = shown.find(r => r.id === refId) ?? shown[0]
     if (shown.length < 2 || !ref) return null
+    // スタートの点しかない（通過地点が未入力）ならグラフを出さない
+    if (!shown.some(r => r.points.some(p => p.km > 0))) return null
+    const visible = shown.filter(r => !hidden.has(r.id))
+    const toggleRunner = (id: number) => {
+        setHidden(prev => {
+            const next = new Set(prev)
+            if (next.has(id)) next.delete(id)
+            else next.add(id)
+            return next
+        })
+        setTappedIndex(null)
+    }
+    const setAllHidden = (hide: boolean) => {
+        setHidden(hide ? new Set(shown.map(r => r.id)) : new Set())
+        setTappedIndex(null)
+    }
 
     // 基準: 選んだ人のゴールタイムを距離で割った平均ペースで、ゴールまで均等に走った場合の通過タイム
     // （記録はネット。グロスでは基準の人のロスを足したタイムを使う）
     const refFinishMs = basis === "net" ? ref.timeMs : ref.timeMs + startLoss(ref.points)
     const refPaceMsPerKm = refFinishMs / distanceKm
-    // 各人の、自分の通過地点での値（差なら秒、正 = 基準ペースより遅れ。順位なら何位か）と表示する文
+    // 表示中の各人の、自分の通過地点での値（差なら秒、正 = 基準ペースより遅れ。順位なら何位か。
+    // ラップならその地点までの区間の 1km あたりの秒数）と表示する文
     const values: Map<number, number>[] = []
     const texts: Map<number, string>[] = []
     if (mode === "gap") {
-        for (const r of shown) {
+        for (const r of visible) {
             const v = new Map<number, number>()
             const t = new Map<number, string>()
             // スタート（0km）も含めて、全員の線をスタートから結ぶ（グロスはロスの分だけ遅れて始まる）
@@ -184,9 +208,26 @@ export function RaceGapChart({ runners, distanceKm }: { runners: GapRunner[]; di
             values.push(v)
             texts.push(t)
         }
+    } else if (mode === "lap") {
+        for (const r of visible) {
+            const v = new Map<number, number>()
+            const t = new Map<number, string>()
+            // 最初の区間は、ネットならスタートライン通過から、グロスなら号砲から（ロスを含む）
+            const pts = withFinish(basisPoints(r.points, basis), r, basis, distanceKm)
+            for (let i = 1; i < pts.length; i++) {
+                const lapMs = pts[i].ms - pts[i - 1].ms
+                const segKm = pts[i].km - pts[i - 1].km
+                if (lapMs <= 0 || segKm <= 0) continue
+                const pace = lapMs / segKm
+                v.set(pts[i].km, pace / 1000)
+                t.set(pts[i].km, `${formatPace(pace)}（${formatElapsed(lapMs)}）`)
+            }
+            values.push(v)
+            texts.push(t)
+        }
     } else {
         // ネットのスタートは全員 0 で順位がつかないため除く（グロスはスタートライン通過の順）
-        const elapsed = shown.map(r => withFinish(
+        const elapsed = visible.map(r => withFinish(
             basisPoints(r.points, basis).filter(p => basis === "gross" || p.km > 0), r, basis, distanceKm))
         for (const pts of elapsed) {
             const v = new Map<number, number>()
@@ -202,8 +243,6 @@ export function RaceGapChart({ runners, distanceKm }: { runners: GapRunner[]; di
         }
     }
     const xs = [...new Set(values.flatMap(g => [...g.keys()]))].sort((a, b) => a - b)
-    // スタートの点しかない（通過地点が未入力）ならグラフを出さない
-    if (xs.length <= 1) return null
 
     return (
         <div className="mt-2">
@@ -211,7 +250,7 @@ export function RaceGapChart({ runners, distanceKm }: { runners: GapRunner[]; di
                 <Toggle
                     label="グラフの種類"
                     value={mode}
-                    options={[["gap", "基準ペースとの差"], ["rank", "順位の変動"]]}
+                    options={[["gap", "基準ペースとの差"], ["rank", "順位の変動"], ["lap", "ラップ"]]}
                     onChange={m => { setMode(m); setTappedIndex(null) }}
                 />
                 {mode === "gap" && (
@@ -238,24 +277,35 @@ export function RaceGapChart({ runners, distanceKm }: { runners: GapRunner[]; di
                             上が先行・下が遅れ。0 は基準ペースで均等に走った場合
                             {basis === "net" ? "（スタートライン通過から）" : "（号砲から。スタートはロスの分だけ遅れて始まる）"}
                         </>
-                        : <>
-                            ラップを登録した人の中での、各地点の通過順位
+                        : mode === "rank"
+                        ? <>
+                            表示中の人の中での、各地点の通過順位
                             {basis === "net" ? "（スタートライン通過からのタイム順）" : "（号砲からのタイム順。スタートはライン通過の順）"}
                             。その地点のタイムがない人は除いて数える
+                        </>
+                        : <>
+                            各地点までの区間の 1km あたりのペース。上ほど速い
+                            {basis === "net" ? "（最初の区間はスタートライン通過から）" : "（最初の区間は号砲から。スタートのロスを含む）"}
                         </>}
                     {coarsePointer && "。タップでその地点の順位を表示（もう一度タップで閉じる）"}
                 </span>
             </div>
             <LineStyleContext.Provider value={styles}>
+            <ModeContext.Provider value={mode}>
             {/* 横スクロールにするとグラフのジェスチャー処理とぶつかるため、画面幅に収める。
                 グラフ上の縦スワイプはライブラリ側でページのスクロールになる */}
+            {visible.length === 0 ? (
+                <p className="h-[280px] flex items-center justify-center text-sm text-gray-500 border">
+                    下の名前を押して、グラフに表示する人を選んでください
+                </p>
+            ) : (
             <div className="relative">
                     <LineChart
                         height={280}
                         // 標準の凡例は線の種類を表せないため、下に自作の凡例を出す
                         hideLegend
                         // 9人目以降の破線・点線（線の要素には data-series に系列 ID が入る）
-                        sx={Object.fromEntries(shown.flatMap(r => {
+                        sx={Object.fromEntries(visible.flatMap(r => {
                             const dash = styles.get(String(r.id))!.dash
                             return dash ? [[`& .MuiLineChart-line[data-series="${r.id}"]`, { strokeDasharray: dash }]] : []
                         }))}
@@ -270,15 +320,21 @@ export function RaceGapChart({ runners, distanceKm }: { runners: GapRunner[]; di
                                 reverse: true,
                                 valueFormatter: (sec: number) => sec === 0 ? "0" : `${sec > 0 ? "+" : "-"}${formatGap(sec)}`,
                             }
-                            : {
+                            : mode === "rank"
+                            ? {
                                 // 1位を上に、目盛りは整数の順位のみ
                                 reverse: true,
                                 min: 1,
-                                max: shown.length,
+                                max: Math.max(visible.length, 2),
                                 tickMinStep: 1,
                                 valueFormatter: (rank: number) => `${rank}位`,
+                            }
+                            : {
+                                // 速い（1km あたりの秒数が小さい）ほど上
+                                reverse: true,
+                                valueFormatter: (sec: number) => formatGap(sec),
                             }]}
-                        series={shown.map((r, i) => ({
+                        series={visible.map((r, i) => ({
                             id: String(r.id),
                             label: r.name,
                             color: styles.get(String(r.id))!.color,
@@ -311,7 +367,7 @@ export function RaceGapChart({ runners, distanceKm }: { runners: GapRunner[]; di
                     <div className="absolute top-0 left-12 pointer-events-none max-w-[calc(100%-3.5rem)]">
                         <RankList
                             km={xs[tappedIndex]}
-                            items={shown.flatMap((r, i) => {
+                            items={visible.flatMap((r, i) => {
                                 const v = values[i].get(xs[tappedIndex])
                                 return v === undefined ? [] : [{ id: String(r.id), name: r.name, value: v, text: texts[i].get(xs[tappedIndex]) ?? "" }]
                             })}
@@ -319,14 +375,32 @@ export function RaceGapChart({ runners, distanceKm }: { runners: GapRunner[]; di
                     </div>
                 )}
             </div>
-            <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs md:text-sm">
-                {shown.map(r => (
-                    <li key={r.id} className="whitespace-nowrap">
-                        <LineSample style={styles.get(String(r.id))!} />
-                        {r.name}
-                    </li>
-                ))}
+            )}
+            {/* 凡例。名前を押すとグラフへの表示・非表示を切り替える */}
+            <ul className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs md:text-sm">
+                {shown.map(r => {
+                    const on = !hidden.has(r.id)
+                    return (
+                        <li key={r.id}>
+                            <button
+                                onClick={() => toggleRunner(r.id)}
+                                aria-pressed={on}
+                                className={`whitespace-nowrap rounded px-1 hover:bg-gray-100 ${on ? "" : "text-gray-400 line-through"}`}
+                            >
+                                <span className={on ? "" : "opacity-30"}><LineSample style={styles.get(String(r.id))!} /></span>
+                                {r.name}
+                            </button>
+                        </li>
+                    )
+                })}
+                <li className="text-gray-500">
+                    <button onClick={() => setAllHidden(false)} className="text-blue-600 hover:underline px-1">全員表示</button>
+                    /
+                    <button onClick={() => setAllHidden(true)} className="text-blue-600 hover:underline px-1">全員外す</button>
+                </li>
             </ul>
+            <p className="text-xs text-gray-500">名前を押すと、グラフへの表示・非表示を切り替えます</p>
+            </ModeContext.Provider>
             </LineStyleContext.Provider>
         </div>
     )
