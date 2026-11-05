@@ -6,6 +6,7 @@ import { formatTime } from "@/lib/utils"
 import Link from "next/link"
 import { SplitTableLoader } from "@/components/SplitTable"
 import { parseComment } from "@/components/CommentText"
+import { EnrollmentTag } from "@/components/EnrollmentTag"
 
 type RaceRecord = {
   id: number
@@ -19,6 +20,7 @@ type RaceRecord = {
   event_id: number | null
   clever_index: number | null
   has_splits: boolean
+  enrollment_year: number | null
 }
 
 type Props = {
@@ -31,12 +33,13 @@ type Props = {
   show_distance?: boolean
   racenameSearch: string
   nameSearch: string
+  enrollmentYear: string
   searchTrigger: number
 }
 
 type SortKey = keyof RaceRecord
 
-export default function RecordTable({ view, genderFilter, distance, raceType, date_min, date_max, show_distance, racenameSearch, nameSearch, searchTrigger }: Props) {
+export default function RecordTable({ view, genderFilter, distance, raceType, date_min, date_max, show_distance, racenameSearch, nameSearch, enrollmentYear, searchTrigger }: Props) {
   const [records, setRecords] = useState<RaceRecord[]>([])
   const [sortKey, setSortKey] = useState<SortKey>("date")
   const [sortAsc, setSortAsc] = useState(false)
@@ -82,6 +85,9 @@ export default function RecordTable({ view, genderFilter, distance, raceType, da
       if (nameSearch !== "") {
         query = query.ilike("name", `%${nameSearch}%`) // 匿名を含む名前のみ
       }
+      if (/^\d{4}$/.test(enrollmentYear)) {
+        query = query.eq("enrollment_year", Number(enrollmentYear))
+      }
       const { data, error } = await query;
       if (error) {
         console.error("Supabase error:", JSON.stringify(error, null, 2))
@@ -90,7 +96,7 @@ export default function RecordTable({ view, genderFilter, distance, raceType, da
       }
     }
     fetchRecords()
-  }, [view, distance, genderFilter, raceType, date_min, date_max, racenameSearch, nameSearch, searchTrigger])
+  }, [view, distance, genderFilter, raceType, date_min, date_max, racenameSearch, nameSearch, enrollmentYear, searchTrigger])
 
   const sortedRecords = [...records]
     .sort((a, b) => {
@@ -183,7 +189,7 @@ export default function RecordTable({ view, genderFilter, distance, raceType, da
                 <tr>
                   <td className="px-1 md:px-3 py-0 text-right">{index + 1}.</td>
                   <td className={`px-1 md:px-3 py-0 ${r.gender === "female" ? "text-red-600" : "text-black"}`}>
-                    {r.name}
+                    {r.name}<EnrollmentTag year={r.enrollment_year} />
                   </td>
                   <td className="px-1 md:px-3 py-0 text-right">
                     {formatTime(r.time_ms)}

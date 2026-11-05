@@ -6,6 +6,7 @@ import { SplitPoint } from "@/lib/splits"
 import { SplitTable } from "@/components/SplitTable"
 import { RaceGapChart } from "@/components/RaceGapChart"
 import { formatRank } from "@/lib/ranks"
+import { EnrollmentTag } from "@/components/EnrollmentTag"
 
 export type EventResult = {
     id: number
@@ -21,6 +22,7 @@ export type EventResult = {
     division: string | null
     division_rank: number | null
     division_total: number | null
+    enrollment_year: number | null
 }
 
 type RaceInfo = { id: number; name: string; distance_km: number }
@@ -110,7 +112,7 @@ export function EditionResults({ races, results, splits }: {
                                     <Fragment key={r.id}>
                                         <tr>
                                             <td className="px-1 md:px-3 py-0">{raceById.get(r.race_id)?.name ?? ""}</td>
-                                            <td className={`px-1 md:px-3 py-0 ${r.gender === "female" ? "text-red-600" : ""}`}>{r.name}</td>
+                                            <td className={`px-1 md:px-3 py-0 ${r.gender === "female" ? "text-red-600" : ""}`}>{r.name}<EnrollmentTag year={r.enrollment_year} /></td>
                                             <td className="px-1 md:px-3 py-0 text-right">{formatTime(r.time_ms)}</td>
                                             <td className="px-1 md:px-3 py-0 text-right">{r.clever_index ?? ""}</td>
                                             {hasRank && (

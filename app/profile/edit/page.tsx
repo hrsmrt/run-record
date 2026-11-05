@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
+import { enrollmentToStr, parseEnrollmentYear } from "@/lib/enrollment"
 
 type Profile = {
     name: string
@@ -14,6 +15,7 @@ type Profile = {
 export default function ProfileEditPage() {
     const router = useRouter()
     const [profile, setProfile] = useState<Profile>({ name: "", display_name: "", gender: "", birth_year: 2000 })
+    const [enrollmentStr, setEnrollmentStr] = useState("")
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
@@ -24,14 +26,16 @@ export default function ProfileEditPage() {
 
             const { data, error } = await supabase
                 .from("profiles")
-                .select("name, display_name, gender, birth_year")
+                .select("name, display_name, gender, birth_year, enrollment_year")
                 .eq("user_id", user.id)
                 .maybeSingle()
 
             if (error) {
                 console.error(error)
             } else if (data) {
-                setProfile(data) // ←ここでフォームの初期値として設定
+                const { enrollment_year, ...rest } = data
+                setProfile(rest) // ←ここでフォームの初期値として設定
+                setEnrollmentStr(enrollmentToStr(enrollment_year))
             }
 
             setLoading(false)
@@ -41,6 +45,11 @@ export default function ProfileEditPage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
+        const enrollmentYear = parseEnrollmentYear(enrollmentStr)
+        if (enrollmentYear === undefined) {
+            alert("入学年度は西暦4桁（例: 2017）で入力してください")
+            return
+        }
         const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
@@ -53,6 +62,7 @@ export default function ProfileEditPage() {
                 display_name: profile.display_name ?? "",
                 gender: profile.gender ?? "",
                 birth_year: profile.birth_year ?? null,
+                enrollment_year: enrollmentYear,
             },
                 { onConflict: "user_id" }  // user_id が被ったら update
             )
@@ -103,6 +113,15 @@ export default function ProfileEditPage() {
                         type="number"
                         value={profile.birth_year ?? ""}
                         onChange={(e) => setProfile({ ...profile, birth_year: Number(e.target.value) })}
+                        className="border p-2 w-full"
+                    />
+                    入学年度:
+                    <input
+                        type="text"
+                        inputMode="numeric"
+                        value={enrollmentStr}
+                        onChange={(e) => setEnrollmentStr(e.target.value)}
+                        placeholder="例: 2017"
                         className="border p-2 w-full"
                     />
                 </label>

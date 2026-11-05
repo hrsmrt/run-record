@@ -45,7 +45,7 @@ export default function Home() {
       <div className="w-full max-w-4xl flex flex-col gap-8">
         <div className="text-center space-y-2">
           <h1 className="text-4xl font-bold">Runner&apos;s Record</h1>
-          <p className="text-gray-600">マラソン等大会結果記録・共有ツール</p>
+          <p className="text-gray-600">ホノマラOBOG向け記録共有サイト（非公式）</p>
         </div>
 
         <div className="grid md:grid-cols-3 gap-6">

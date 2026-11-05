@@ -7,6 +7,7 @@ import { formatTime } from "@/lib/utils"
 import { formatDistance } from "@/lib/splits"
 import { SplitTableLoader } from "@/components/SplitTable"
 import { parseComment } from "@/components/CommentText"
+import { EnrollmentTag } from "@/components/EnrollmentTag"
 
 export type GroupRecord = {
     id: number
@@ -21,6 +22,7 @@ export type GroupRecord = {
     event_id: number | null
     has_splits: boolean
     category: string
+    enrollment_year: number | null
 }
 
 // 同じ大会・同じ日の記録のまとまり
@@ -51,7 +53,7 @@ export async function fetchRaceGroups(supabase: SupabaseClient): Promise<RaceGro
     for (let from = 0; ; from += PAGE_SIZE) {
         const { data, error } = await supabase
             .from("public_results")
-            .select("id, name, gender, time_ms, distance, race_name, date, comment, clever_index, event_id, has_splits, category")
+            .select("id, name, gender, time_ms, distance, race_name, date, comment, clever_index, event_id, has_splits, category, enrollment_year")
             .not("date", "is", null)
             .order("date", { ascending: false })
             .order("id")
@@ -125,7 +127,7 @@ export function RaceGroupRecords({ records }: { records: GroupRecord[] }) {
                     {records.map(r => (
                         <Fragment key={r.id}>
                             <tr>
-                                <td className={`px-1 md:px-3 py-0 ${r.gender === "female" ? "text-red-600" : ""}`}>{r.name}</td>
+                                <td className={`px-1 md:px-3 py-0 ${r.gender === "female" ? "text-red-600" : ""}`}>{r.name}<EnrollmentTag year={r.enrollment_year} /></td>
                                 <td className="px-1 md:px-3 py-0 text-right">{formatDistance(r.distance)}</td>
                                 <td className="px-1 md:px-3 py-0 text-right">{formatTime(r.time_ms)}</td>
                                 <td className="px-1 md:px-3 py-0 text-right">{r.clever_index ?? ""}</td>

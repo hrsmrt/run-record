@@ -1,15 +1,16 @@
 # Runner's Record 開発メモ
 
 ## プロジェクト概要
-マラソン等大会結果記録・共有ツール
+ホノマラOBOG向け記録共有サイト（非公式）
 - Next.js + TypeScript + Tailwind CSS
 - Supabase（認証・データベース）
-- サークルOBOGなどメンバー限定（全ページログイン必須）
+- ホノマラ（ホノルルマラソンを走る会）OBOG のメンバー限定（全ページログイン必須）。掲載は管理者が知り得た範囲
 
 ## ページ構成
 全ページログイン必須（`/auth/*` と `robots.txt` を除く）。「メンバーのみ」は閲覧用アカウントでは入れないページ。
 - `/` - ホームページ（各ページへのリンクカード表示）
 - `/latest` - 最近の記録（大会ごと。今年度の大会と直近20大会の多い方）
+- `/races` - 出場大会記録（大会ごとに新しい順。年度・大会名・メンバー名・種目・入学年度で絞り込み、条件は URL に保持）
 - `/search` - 検索ページ
 - `/links` - リンク集
 - `/profile` - プロフィール（メンバーのみ）
@@ -27,6 +28,7 @@
 - `/event/edit-editions` - 開催日編集（admin のみ）
 - `/event/edit-races` - 種目編集（admin のみ。エントリー数・部門ごとのエントリー数もここ）
 - `/event/edit-results` - 記録一括登録（admin のみ。1レースに複数人、アカウントのない人の追加も可）
+- `/event/edit-members` - メンバー編集（admin のみ。アカウントの有無を問わず入学年度を入力）
 - `/auth/mfa` - 2段階認証（TOTP）の登録・入力
 
 ## 設計メモ
@@ -54,6 +56,10 @@
   - 母数は大会情報側: `races.entrants_total`・`entrants_male`・`entrants_female`、部門ごとは `race_divisions`（`race_id`, `name`, `entrants`）
   - `public_results` の `overall_total`・`gender_total`（本人の性別で男女を選ぶ）・`division_total`（`race_id` と部門名の完全一致で結合）が母数
   - 書式は `lib/ranks.ts`（`parseCount`・`formatRank`）
+- **入学年度**（`sql/2026-11-06_enrollment_year.sql`）
+  - `profiles.enrollment_year`・`profiles_pending.enrollment_year`（SMALLINT）。`public_results.enrollment_year` は2つの表を直接結合して取る（`profiles_all` の定義は手元にないため変更していない）
+  - 記録の表では名前の横に下二桁（例:（17））。プロフィール・絞り込み・メンバー編集では「〜年目」（今年度 − 入学年度 + 1、年度は4月始まり）。`lib/enrollment.ts`・`components/EnrollmentTag.tsx`
+  - 管理者の一覧取得・変更は所有者権限の関数 `admin_list_members()`・`admin_set_enrollment_year()`（関数内で admin・aal2 を確認）
 - **大会レポート**: `race_reports`（開催回ごと、感想・観光の文章のみ、改行とリンク）、表示は `public_race_reports`
 - **公開ビュー**: `public_results` に一本化（旧 `public_record`・`public_full_best` など14個は削除済み）
   - `category`（5km / 10km / half / full / 100km / under100 / over100 / time）、`is_best`（利用者×区分のベスト。時間走は距離が長い方）、`has_splits`（ラップ有無）
@@ -68,6 +74,16 @@
 - **日時**: `races.entry_start_at` などは TIMESTAMPTZ。表示・入力はブラウザのタイムゾーンで変換する（ISO文字列を切り出すと9時間ずれる）
 
 ## 最近の作業履歴
+
+### 2026-11-06: 出場大会記録、入学年度、OBOG 向けの文言
+
+#### DB
+- `2026-11-06_enrollment_year.sql` - 入学年度、`public_results.enrollment_year`、管理者用の関数（`2026-11-05_ranks.sql` の後に実行）
+
+#### アプリ
+- 出場大会記録ページ `/races`（`components/RaceHistory.tsx`、最近の記録と共通の `components/RaceGroups.tsx`）
+- 入学年度の入力（プロフィール、一括登録の人の追加、メンバー編集）と、記録の表の名前の横に入学年度の下二桁（例:（17））、出場大会記録・検索で入学年度の絞り込み
+- ホーム・ログイン・フッター・メタデータの説明を「ホノマラOBOG向け記録共有サイト（非公式）」に
 
 ### 2026-11-04〜05: グラフの拡張、順位・エントリー数
 

@@ -22,6 +22,7 @@ export default function SearchPage() {
   const [nameSearch, setNameSearch] = useState<string>("")
   const [searchTrigger, setSearchTrigger] = useState(0);
   const [year, setYear] = useState<string>("")
+  const [enrollmentYear, setEnrollmentYear] = useState<string>("")
 
   useEffect(() => {
     if (event === "all") {
@@ -142,6 +143,16 @@ export default function SearchPage() {
               placeholder="年"
             />
           </div>
+          <div className="flex-1 min-w-[40px] max-w-[200px]">
+            <input
+              type="text"
+              inputMode="numeric"
+              value={enrollmentYear}
+              onChange={e => setEnrollmentYear(e.target.value.trim())}
+              className="w-full border px-2 py-1 rounded"
+              placeholder="入学年度（例: 2017）"
+            />
+          </div>
         </div>
 
         {/* RecordTableにフィルター値を渡す */}
@@ -155,6 +166,7 @@ export default function SearchPage() {
           date_max={maxDate}
           racenameSearch={racenameSearch}
           nameSearch={nameSearch}
+          enrollmentYear={enrollmentYear}
           searchTrigger={searchTrigger}
         />
       </div>

@@ -5,6 +5,7 @@ const PAGES = [
     { href: "/event/edit-editions", label: "開催日編集" },
     { href: "/event/edit-races", label: "種目編集" },
     { href: "/event/edit-results", label: "記録一括登録" },
+    { href: "/event/edit-members", label: "メンバー編集" },
 ]
 
 export function EventAdminNav({ current }: { current: string }) {

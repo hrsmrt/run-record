@@ -9,6 +9,7 @@ import { useUnsavedWarning } from "@/lib/use-unsaved-warning"
 import { RaceDatalist, RaceInput, RaceOption, useRaceOptions } from "@/components/RaceInput"
 import { DivisionDatalist } from "@/components/RaceDivisionsEditor"
 import { formatRank, parseCount } from "@/lib/ranks"
+import { parseEnrollmentYear } from "@/lib/enrollment"
 
 type Member = { user_id: string; name: string | null; pending_auth: boolean }
 
@@ -78,6 +79,7 @@ export function BulkResultsClient() {
     // メンバー一覧にいない人（アカウントなし）の追加
     const [newName, setNewName] = useState("")
     const [newGender, setNewGender] = useState("")
+    const [newEnrollment, setNewEnrollment] = useState("")
     const [adding, setAdding] = useState(false)
 
     const dirty = rows.some(isFilled)
@@ -117,13 +119,15 @@ export function BulkResultsClient() {
         const name = newName.trim()
         if (!name) { setMessage({ text: "追加する人の名前を入力してください", isError: true }); return }
         if (!newGender) { setMessage({ text: "追加する人の性別を選んでください", isError: true }); return }
+        const enrollmentYear = parseEnrollmentYear(newEnrollment)
+        if (enrollmentYear === undefined) { setMessage({ text: "入学年度は西暦4桁（例: 2017）で入力してください", isError: true }); return }
         if (members.some(m => m.name === name) && !confirm(`「${name}」は一覧にすでにいます。別人として追加しますか？`)) return
         setAdding(true)
         // ID は DB の既定値で作らせる（任意の ID を指定して既存メンバーと重複させないため）
         const { data, error } = await createClient()
             .from("profiles_pending")
             // name（名前）と display_name（表示名。公開されるのはこちら）の両方に入れる
-            .insert({ name, display_name: name, gender: newGender, pending_auth: true })
+            .insert({ name, display_name: name, gender: newGender, enrollment_year: enrollmentYear, pending_auth: true })
             .select("id")
             .single()
         setAdding(false)
@@ -132,6 +136,7 @@ export function BulkResultsClient() {
         setMembers(prev => [...prev, { user_id: id, name, pending_auth: true }].sort((a, b) => (a.name ?? "").localeCompare(b.name ?? "")))
         setNewName("")
         setNewGender("")
+        setNewEnrollment("")
         setMessage({ text: `「${name}」を追加しました`, isError: false })
         const blank = rows.find(r => !r.userId)
         if (blank) updateRow(blank.key, { userId: id })
@@ -376,6 +381,13 @@ export function BulkResultsClient() {
                                 <option value="male">男性</option>
                                 <option value="female">女性</option>
                             </select>
+                            <input
+                                value={newEnrollment}
+                                placeholder="入学年度"
+                                inputMode="numeric"
+                                onChange={e => setNewEnrollment(e.target.value)}
+                                className="w-20 border rounded px-1 py-0.5"
+                            />
                             <button
                                 onClick={handleAddPerson}
                                 disabled={adding}
@@ -403,7 +415,7 @@ export function BulkResultsClient() {
             )}
             <p className="mt-6 text-xs text-gray-500">
                 ※ 大会名・日付・距離は選んだレースの情報で登録されます。タイムはネットタイムを推奨（グロスは備考へ）。
-                「（アカウントなし）」はアカウントを持たない OBOG などです。
+                「（アカウントなし）」はアカウントを持たない OBOG です（入学年度はメンバー編集で後から直せます）。
                 順位は大会の公式順位をそのまま、部門名は大会の表記のまま入力します（部門のエントリー数は種目編集で登録）。
             </p>
         </div>

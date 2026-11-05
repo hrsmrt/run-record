@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { formatDistance } from "@/lib/splits"
+import { yearsSinceEnrollment } from "@/lib/enrollment"
 import { RaceGroup, RaceGroupRecords, RaceGroupTitle, fetchRaceGroups, fiscalYearOf, formatDate } from "@/components/RaceGroups"
 
 // 種目の絞り込み（public_results の category）
@@ -25,6 +26,7 @@ export function RaceHistory() {
     const params = useSearchParams()
     const year = params.get("year") ?? ""
     const category = params.get("cat") ?? ""
+    const enrollment = params.get("ey") ?? ""
 
     const [groups, setGroups] = useState<RaceGroup[] | null>(null)
     const [error, setError] = useState("")
@@ -64,14 +66,21 @@ export function RaceHistory() {
         [groups],
     )
 
-    // 種目で記録を絞り、残った記録がある大会だけを表示する
+    // 記録のあるメンバーの入学年度（新しい順 = 年目の若い順）
+    const enrollmentYears = useMemo(
+        () => [...new Set((groups ?? []).flatMap(g => g.records.flatMap(r => r.enrollment_year ?? [])))].sort((a, b) => b - a),
+        [groups],
+    )
+
+    // 種目・入学年度で記録を絞り、残った記録がある大会だけを表示する
     const shown = useMemo(() => (groups ?? []).flatMap(g => {
         if (year !== "" && fiscalYearOf(g.date) !== Number(year)) return []
         if (raceQuery !== "" && !g.raceName.includes(raceQuery)) return []
         if (nameQuery !== "" && !g.records.some(r => r.name.includes(nameQuery))) return []
-        const records = g.records.filter(r => matchCategory(r.category, category))
+        const records = g.records.filter(r =>
+            matchCategory(r.category, category) && (enrollment === "" || r.enrollment_year === Number(enrollment)))
         return records.length > 0 ? [{ ...g, records }] : []
-    }), [groups, year, raceQuery, nameQuery, category])
+    }), [groups, year, raceQuery, nameQuery, category, enrollment])
 
     const toggle = (key: string) => setOpenKeys(prev => {
         const next = new Set(prev)
@@ -83,7 +92,7 @@ export function RaceHistory() {
     if (error) return <p className="text-sm text-red-600">読み込みに失敗しました: {error}</p>
     if (!groups) return <p className="text-sm">読み込み中...</p>
 
-    const filtered = year !== "" || raceQuery !== "" || nameQuery !== "" || category !== ""
+    const filtered = year !== "" || raceQuery !== "" || nameQuery !== "" || category !== "" || enrollment !== ""
     const inputClass = "border rounded px-2 py-1 bg-white text-sm"
 
     return (
@@ -107,6 +116,10 @@ export function RaceHistory() {
                 />
                 <select value={category} onChange={e => setParam("cat", e.target.value)} className={inputClass} aria-label="種目">
                     {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                </select>
+                <select value={enrollment} onChange={e => setParam("ey", e.target.value)} className={inputClass} aria-label="入学年度">
+                    <option value="">すべての入学年度</option>
+                    {enrollmentYears.map(y => <option key={y} value={y}>{yearsSinceEnrollment(y)}年目（{y}年度入学）</option>)}
                 </select>
                 {filtered && (
                     <button onClick={() => { setRaceQuery(""); setNameQuery(""); router.replace(pathname, { scroll: false }) }} className="text-sm text-blue-600 hover:underline">

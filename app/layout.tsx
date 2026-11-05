@@ -12,7 +12,7 @@ const defaultUrl = process.env.VERCEL_URL
 export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
   title: "Runner’s Record",
-  description: "",
+  description: "ホノマラOBOG向け記録共有サイト（非公式）",
   // メンバー限定サイトのため検索エンジンに登録させない
   robots: { index: false, follow: false, nocache: true },
 };
@@ -52,9 +52,9 @@ export default function RootLayout({
         </ThemeProvider>
         <footer className="w-full flex flex-col md:flex-row items-center justify-center text-center text-xs py-16 gap-2 md:gap-8 border-t mx-auto">
           <div className="space-y-2">
-          <p>マラソン等の大会結果を記録・共有する、メンバー限定のツールです。同じ大会に参加したメンバーやサークルOBOGの記録も掲載することがあります。</p>
+          <p>ホノマラOBOG のマラソン等の大会結果を記録・共有する、メンバー限定のサイト（非公式）です。管理者が知り得た範囲で掲載しています。</p>
           <p>大会情報は確認済みのものを掲載していますが、誤りがある可能性もあるため、公式情報もご確認ください。誤りや掲載してほしい大会があればご連絡ください。</p>
-          <p>記録・ラップ・クレバー指数は、主に RUNNET の計測結果から転記しています。</p>
+          <p>記録・ラップ・クレバー指数・順位は、主に RUNNET の計測結果から転記しています。</p>
           <p>お問い合わせは村田(メール: <ObfuscatedEmail />)までお願いします。</p>
           <p>
             Powered by{" "}

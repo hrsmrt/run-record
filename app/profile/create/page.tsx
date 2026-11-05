@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
+import { parseEnrollmentYear } from "@/lib/enrollment"
 
 type Profile = {
   name: string
@@ -14,10 +15,16 @@ type Profile = {
 export default function ProfileCreatePage() {
   const router = useRouter()
   const [profile, setProfile] = useState<Profile>({ name: "", display_name: "", gender: "", birth_year: 2000 })
+  const [enrollmentStr, setEnrollmentStr] = useState("")
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    const enrollmentYear = parseEnrollmentYear(enrollmentStr)
+    if (enrollmentYear === undefined) {
+      alert("入学年度は西暦4桁（例: 2017）で入力してください")
+      return
+    }
     setLoading(true)
 
     const supabase = createClient()
@@ -36,6 +43,7 @@ export default function ProfileCreatePage() {
         display_name: profile.display_name ?? "",
         gender: profile.gender ?? "",
         birth_year: profile.birth_year ?? null,
+        enrollment_year: enrollmentYear,
       })
 
     setLoading(false)
@@ -89,6 +97,17 @@ export default function ProfileCreatePage() {
             type="number"
             value={profile.birth_year}
             onChange={(e) => setProfile({ ...profile, birth_year: Number(e.target.value) })}
+            className="border p-2 w-full"
+          />
+        </label>
+        <label>
+          入学年度:
+          <input
+            type="text"
+            inputMode="numeric"
+            value={enrollmentStr}
+            onChange={(e) => setEnrollmentStr(e.target.value)}
+            placeholder="例: 2017"
             className="border p-2 w-full"
           />
         </label>
