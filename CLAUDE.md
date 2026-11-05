@@ -17,14 +17,17 @@
 - `/records/form` - フォームで記録追加（メンバーのみ）
 - `/records/upload` - CSV形式で記録追加（メンバーのみ）
 - `/records/edit` - 記録を編集（メンバーのみ）
-- `/records/[id]/splits` - ラップ入力（メンバーのみ、自分の記録のみ）
+- `/records/[id]/splits` - ラップ入力（メンバーのみ、自分の記録のみ。管理者は全員分）
+- `/reports/edit/[editionId]` - 大会レポート（感想・観光）の編集（メンバーのみ）
 - `/event` - 大会一覧（都道府県コード順）
 - `/event/editions` - 開催一覧
 - `/event/schedule` - カレンダー（年度・週単位、祝日表示）
 - `/event/[id]` - 大会詳細（基本情報・開催回・種目・参加者の記録とラップ）
 - `/event/edit-events` - 大会編集（admin のみ）
 - `/event/edit-editions` - 開催日編集（admin のみ）
-- `/event/edit-races` - 種目編集（admin のみ）
+- `/event/edit-races` - 種目編集（admin のみ。エントリー数・部門ごとのエントリー数もここ）
+- `/event/edit-results` - 記録一括登録（admin のみ。1レースに複数人、アカウントのない人の追加も可）
+- `/auth/mfa` - 2段階認証（TOTP）の登録・入力
 
 ## 設計メモ
 
@@ -33,6 +36,7 @@
 - **閲覧用共有アカウント**: `viewer@runners-record.local`（`lib/viewer.ts`）、`app_metadata.role = "viewer"`。ログイン画面の「閲覧用パスワード」欄からパスワードのみでログインする。記録・プロフィール・大会編集・パスワード変更には入れず（middleware）、`results`・`result_splits`・`profiles` への書き込みは RESTRICTIVE ポリシーで禁止
 - **ユーザー登録**: ブラウザからの新規登録は廃止。管理者が Supabase ダッシュボード（Authentication → Users → Add user）で直接作成する。「Allow new users to sign up」はオフ
 - **admin 判定**: `app_metadata.role === "admin"`。編集ページはサーバー側で判定してリダイレクトするが、実際の書き込み制限は RLS（`sql/admin_policies.sql`）
+- **管理者の2段階認証**: 管理者の権限（大会情報の編集、他メンバーの記録・ラップ）は TOTP 認証済み（`aal2`）のときだけ。画面は `lib/admin.ts` の `getAdminState`（`adminActive`）と middleware、DB は各ポリシーの `auth.jwt() ->> 'aal' = 'aal2'`（`sql/2026-11-03_admin_require_mfa.sql`）
 - **検索エンジン対策**: `app/robots.ts`（全拒否）、`app/layout.tsx` の noindex メタタグ、`next.config.ts` の `X-Robots-Tag` ヘッダー
 
 ### データ構成
@@ -44,6 +48,13 @@
 - **ラップ**: `result_splits`（`result_id`, `distance_km`, `elapsed_ms`、`(result_id, distance_km)` で一意）
   - 通過タイムは号砲からのグロス。0km の行がスタートロス。ネット = 通過 − ロス
   - 計算・書式は `lib/splits.ts`、表示は `components/SplitTable.tsx`
+  - `rank` は通過順位（任意）
+- **順位・エントリー数**（`sql/2026-11-05_ranks.sql`）
+  - `results.overall_rank`・`gender_rank`・`division`（部門名、大会の表記のまま）・`division_rank`。順位は大会の公式順位を転記（市民マラソンはネット順が多い）
+  - 母数は大会情報側: `races.entrants_total`・`entrants_male`・`entrants_female`、部門ごとは `race_divisions`（`race_id`, `name`, `entrants`）
+  - `public_results` の `overall_total`・`gender_total`（本人の性別で男女を選ぶ）・`division_total`（`race_id` と部門名の完全一致で結合）が母数
+  - 書式は `lib/ranks.ts`（`parseCount`・`formatRank`）
+- **大会レポート**: `race_reports`（開催回ごと、感想・観光の文章のみ、改行とリンク）、表示は `public_race_reports`
 - **公開ビュー**: `public_results` に一本化（旧 `public_record`・`public_full_best` など14個は削除済み）
   - `category`（5km / 10km / half / full / 100km / under100 / over100 / time）、`is_best`（利用者×区分のベスト。時間走は距離が長い方）、`has_splits`（ラップ有無）
   - 紐付いた記録は大会名・日付を大会情報から取る（`COALESCE`）。`event_id` で大会詳細へリンク
@@ -57,6 +68,25 @@
 - **日時**: `races.entry_start_at` などは TIMESTAMPTZ。表示・入力はブラウザのタイムゾーンで変換する（ISO文字列を切り出すと9時間ずれる）
 
 ## 最近の作業履歴
+
+### 2026-11-04〜05: グラフの拡張、順位・エントリー数
+
+#### DB
+- `2026-11-05_ranks.sql` - 順位・部門・通過順位、エントリー数（`races`・`race_divisions`）、`public_results` に列追加
+
+#### アプリ
+- 大会詳細のグラフ（`components/RaceGapChart.tsx`）を「基準ペースとの差／順位の変動／ラップ（区間ペース）」の切り替えに。凡例で表示する人を選べる（順位は表示中の人の中で数える）
+- 大会詳細の参加者の記録は、初期表示をクレバー指数の高い順（なければタイム順）に。順位・部門の列を追加（入力がある開催回のみ）
+- 記録追加・編集・一括登録・ラップ入力に順位・部門・通過順位、種目編集にエントリー数と部門の編集欄（`components/RaceDivisionsEditor.tsx`）
+- 大会詳細ページの PC 表示幅を `max-w-6xl` に
+
+#### それ以前（2026-11-03〜04、詳細は git log）
+- 大会レポート、差のグラフ、管理者による記録の登録・編集と一括登録、管理者の2段階認証、ログイン後の画面遷移の修正、LAN 内からの開発サーバー接続（`next.config.ts` の `allowedDevOrigins`）
+
+#### 今後の候補
+- 検索ページ・最近の記録にも順位を表示
+- 通過順位を使った「大会全体での順位の推移」グラフ
+- Postgres の更新（Supabase ダッシュボード、利用の少ない時間帯に）
 
 ### 2026-11-03（後半）: 結果と大会情報の紐付け、ラップ、メンバー限定化
 
