@@ -1,46 +1,11 @@
 "use client"
 
-import { Fragment, useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
-import { formatTime } from "@/lib/utils"
-import { formatDistance } from "@/lib/splits"
-import { SplitTableLoader } from "@/components/SplitTable"
-import { parseComment } from "@/components/CommentText"
-
-type LatestRecord = {
-    id: number
-    name: string
-    gender: string | null
-    time_ms: number
-    distance: number
-    race_name: string
-    date: string
-    comment: string | null
-    clever_index: number | null
-    event_id: number | null
-    has_splits: boolean
-}
-
-type RaceGroup = {
-    key: string
-    date: string
-    raceName: string
-    eventId: number | null
-    records: LatestRecord[]
-    // 大会レポート（大会情報に紐付いた大会のみ）
-    report: { editionId: number; count: number } | null
-}
+import { RaceGroup, RaceGroupRecords, RaceGroupTitle, fetchRaceGroups, fiscalYearOf, formatDate } from "@/components/RaceGroups"
 
 const MIN_GROUPS = 20
-
-// 年度（4月始まり）の初日 YYYY-04-01
-const fiscalYearStart = (today: Date) => {
-    const fy = today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1
-    return { fy, start: `${fy}-04-01` }
-}
-
-const formatDate = (d: string) => `${d.substring(0, 4)}/${d.substring(5, 7)}/${d.substring(8, 10)}`
 
 // 最近の記録を大会（同じ大会・同じ日）ごとにまとめて表示。
 // 今年度の大会と直近 MIN_GROUPS 大会のうち、大会数が多い方を表示する
@@ -48,56 +13,23 @@ export function LatestByRace() {
     const [groups, setGroups] = useState<RaceGroup[] | null>(null)
     const [rangeLabel, setRangeLabel] = useState("")
     const [error, setError] = useState("")
-    const [openSplitId, setOpenSplitId] = useState<number | null>(null)
 
     useEffect(() => {
-        const fetchRecords = async () => {
-            const supabase = createClient()
-            const [{ data, error }, { data: reportData }] = await Promise.all([
-                supabase
-                    .from("public_results")
-                    .select("id, name, gender, time_ms, distance, race_name, date, comment, clever_index, event_id, has_splits")
-                    .not("date", "is", null)
-                    .order("date", { ascending: false })
-                    .limit(1000),
-                supabase.from("public_race_reports").select("event_edition_id, event_id, held_on"),
-            ])
-            if (error) { setError(error.message); return }
-
-            // 大会レポートを「開催日|大会ID」ごとに数える
-            const reportsByKey = new Map<string, { editionId: number; count: number }>()
-            for (const rp of reportData ?? []) {
-                const k = `${rp.held_on}|${rp.event_id}`
-                const cur = reportsByKey.get(k)
-                reportsByKey.set(k, { editionId: rp.event_edition_id, count: (cur?.count ?? 0) + 1 })
-            }
-
-            // 日付の新しい順に大会ごとにまとめる（大会情報に紐付いていれば event_id、なければ大会名で判定）
-            const byKey = new Map<string, RaceGroup>()
-            for (const r of (data ?? []) as LatestRecord[]) {
-                const key = `${r.date}|${r.event_id ?? r.race_name}`
-                const g = byKey.get(key) ?? {
-                    key, date: r.date, raceName: r.race_name, eventId: r.event_id, records: [],
-                    report: r.event_id != null ? reportsByKey.get(`${r.date}|${r.event_id}`) ?? null : null,
+        fetchRaceGroups(createClient())
+            .then(all => {
+                const today = new Date()
+                const fy = fiscalYearOf(`${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`)
+                const thisYear = all.filter(g => fiscalYearOf(g.date) >= fy)
+                if (thisYear.length >= MIN_GROUPS) {
+                    setGroups(thisYear)
+                    setRangeLabel(`${fy}年度の大会（${thisYear.length}大会）`)
+                } else {
+                    const recent = all.slice(0, MIN_GROUPS)
+                    setGroups(recent)
+                    setRangeLabel(`直近${recent.length}大会`)
                 }
-                g.records.push(r)
-                byKey.set(key, g)
-            }
-            const all = [...byKey.values()]
-            all.forEach(g => g.records.sort((a, b) => b.distance - a.distance || a.time_ms - b.time_ms))
-
-            const { fy, start } = fiscalYearStart(new Date())
-            const thisYear = all.filter(g => g.date >= start)
-            if (thisYear.length >= MIN_GROUPS) {
-                setGroups(thisYear)
-                setRangeLabel(`${fy}年度の大会（${thisYear.length}大会）`)
-            } else {
-                const recent = all.slice(0, MIN_GROUPS)
-                setGroups(recent)
-                setRangeLabel(`直近${recent.length}大会`)
-            }
-        }
-        fetchRecords()
+            })
+            .catch((e: Error) => setError(e.message))
     }, [])
 
     if (error) return <p className="text-sm text-red-600">読み込みに失敗しました: {error}</p>
@@ -110,66 +42,15 @@ export function LatestByRace() {
                 <section key={g.key} className="bg-white p-2">
                     <h2 className="text-sm md:text-base font-bold mb-1">
                         <span className="mr-2">{formatDate(g.date)}</span>
-                        {g.eventId != null
-                            ? <Link href={`/event/${g.eventId}`} className="text-blue-600 hover:underline">{g.raceName}</Link>
-                            : g.raceName}
+                        <RaceGroupTitle group={g} />
                         <span className="ml-2 text-xs font-normal text-gray-500">{g.records.length}人</span>
-                        {g.report && g.eventId != null && (
-                            <Link
-                                href={`/event/${g.eventId}#edition-${g.report.editionId}`}
-                                className="ml-3 text-xs font-normal text-blue-600 hover:underline"
-                            >
-                                レポート {g.report.count}件
-                            </Link>
-                        )}
                     </h2>
-                    <div className="overflow-x-auto">
-                        <table className="border-collapse w-full bg-white font-mono text-[10px] md:text-sm whitespace-nowrap">
-                            <thead>
-                                <tr className="border-b text-left">
-                                    <th className="px-1 md:px-3 py-0">名前</th>
-                                    <th className="px-1 md:px-3 py-0 text-right">種目</th>
-                                    <th className="px-1 md:px-3 py-0 text-right">記録</th>
-                                    <th className="px-1 md:px-3 py-0 text-right" title="RUNNET のクレバー指数">クレバー</th>
-                                    <th className="px-1 md:px-3 py-0 text-center">ラップ</th>
-                                    <th className="px-1 md:px-3 py-0">備考</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-200">
-                                {g.records.map(r => (
-                                    <Fragment key={r.id}>
-                                        <tr>
-                                            <td className={`px-1 md:px-3 py-0 ${r.gender === "female" ? "text-red-600" : ""}`}>{r.name}</td>
-                                            <td className="px-1 md:px-3 py-0 text-right">{formatDistance(r.distance)}</td>
-                                            <td className="px-1 md:px-3 py-0 text-right">{formatTime(r.time_ms)}</td>
-                                            <td className="px-1 md:px-3 py-0 text-right">{r.clever_index ?? ""}</td>
-                                            <td className="px-1 md:px-3 py-0 text-center">
-                                                {r.has_splits && (
-                                                    <button
-                                                        onClick={() => setOpenSplitId(openSplitId === r.id ? null : r.id)}
-                                                        className="text-blue-600 hover:underline"
-                                                        aria-expanded={openSplitId === r.id}
-                                                    >
-                                                        {openSplitId === r.id ? "閉じる" : "表示"}
-                                                    </button>
-                                                )}
-                                            </td>
-                                            <td className="px-1 md:px-3 py-0 whitespace-normal">{parseComment(r.comment)}</td>
-                                        </tr>
-                                        {openSplitId === r.id && (
-                                            <tr>
-                                                <td colSpan={6} className="px-1 md:px-3 pb-2">
-                                                    <SplitTableLoader resultId={r.id} />
-                                                </td>
-                                            </tr>
-                                        )}
-                                    </Fragment>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                    <RaceGroupRecords records={g.records} />
                 </section>
             ))}
+            <p className="text-sm text-center">
+                それより前の大会は <Link href="/races" className="text-blue-600 hover:underline">出場大会記録</Link> から
+            </p>
         </div>
     )
 }

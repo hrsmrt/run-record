@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { Clock, Search, Link as LinkIcon, Calendar } from "lucide-react"
+import { Clock, Search, Link as LinkIcon, Calendar, History } from "lucide-react"
 
 export default function Home() {
   const pages = [
@@ -9,6 +9,13 @@ export default function Home() {
       description: "最近の大会結果を大会ごとに閲覧できます",
       href: "/latest",
       icon: Clock,
+    },
+    {
+      id: 5,
+      title: "出場大会記録",
+      description: "これまでに出場した大会を新しい順に、年度・大会名・メンバーで絞り込めます",
+      href: "/races",
+      icon: History,
     },
     {
       id: 2,

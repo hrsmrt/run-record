@@ -93,6 +93,15 @@ export function Header() {
                 </li>
                 <li>
                   <Link
+                    href="/races"
+                    className="block px-4 py-2 hover:bg-gray-200"
+                    onClick={() => setOpen(false)}
+                  >
+                    出場大会記録
+                  </Link>
+                </li>
+                <li>
+                  <Link
                     href="/search"
                     className="block px-4 py-2 hover:bg-gray-200"
                     onClick={() => setOpen(false)}
