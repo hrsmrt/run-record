@@ -37,7 +37,8 @@ export const pointLabel = (km: number) =>
 export const formatDistance = (km: number) =>
     isFull(km) ? "フル" : Math.abs(km - HALF_KM) < 0.001 ? "ハーフ" : `${km}km`
 
-export type SplitPoint = { km: number; ms: number }
+// rank は大会の通過順位（入力がなければ省略）
+export type SplitPoint = { km: number; ms: number; rank?: number | null }
 
 export type SplitLap = SplitPoint & {
     netMs: number | null    // 通過タイム − スタートのロス（スタート行は null）

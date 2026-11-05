@@ -7,6 +7,8 @@ import { formatTime } from "@/lib/utils"
 import { formatDistance, parseElapsed } from "@/lib/splits"
 import { useUnsavedWarning } from "@/lib/use-unsaved-warning"
 import { RaceDatalist, RaceInput, RaceOption, useRaceOptions } from "@/components/RaceInput"
+import { DivisionDatalist } from "@/components/RaceDivisionsEditor"
+import { formatRank, parseCount } from "@/lib/ranks"
 
 type Member = { user_id: string; name: string | null; pending_auth: boolean }
 
@@ -15,6 +17,9 @@ type ExistingResult = {
     user_id: string
     time_ms: number
     clever_index: number | null
+    overall_rank: number | null
+    division: string | null
+    division_rank: number | null
     comment: string | null
 }
 
@@ -23,8 +28,20 @@ type EntryRow = {
     userId: string
     timeStr: string
     cleverStr: string
+    overallRankStr: string
+    genderRankStr: string
+    division: string
+    divisionRankStr: string
     comment: string
 }
+
+// 順位・部門の入力欄（placeholder は列見出しの代わりの例）
+const RANK_COLUMNS = [
+    { field: "overallRankStr", label: "総合順位", width: "w-20" },
+    { field: "genderRankStr", label: "男女別順位", width: "w-20" },
+    { field: "division", label: "部門", width: "w-32" },
+    { field: "divisionRankStr", label: "部門順位", width: "w-20" },
+] as const
 
 const RACE_TYPES = [
     { value: "road", label: "ロード" },
@@ -37,7 +54,13 @@ const RACE_TYPES = [
 const defaultRaceType = (eventType: string) =>
     eventType === "trail" ? "trail" : eventType === "track" || eventType === "time_trial" ? "track" : "road"
 
-const emptyRow = (key: number): EntryRow => ({ key, userId: "", timeStr: "", cleverStr: "", comment: "" })
+const emptyRow = (key: number): EntryRow => ({
+    key, userId: "", timeStr: "", cleverStr: "", overallRankStr: "", genderRankStr: "", division: "", divisionRankStr: "", comment: "",
+})
+
+// 何か入力されている行か（メンバー以外も含む）
+const isFilled = (r: EntryRow) =>
+    !!(r.userId || r.timeStr || r.cleverStr || r.overallRankStr || r.genderRankStr || r.division || r.divisionRankStr || r.comment)
 
 // 管理者が1つのレースについて複数人の記録をまとめて登録する
 export function BulkResultsClient() {
@@ -57,7 +80,7 @@ export function BulkResultsClient() {
     const [newGender, setNewGender] = useState("")
     const [adding, setAdding] = useState(false)
 
-    const dirty = rows.some(r => r.userId || r.timeStr || r.cleverStr || r.comment)
+    const dirty = rows.some(isFilled)
     useUnsavedWarning(dirty)
 
     useEffect(() => {
@@ -72,7 +95,7 @@ export function BulkResultsClient() {
     const loadExisting = async (raceId: number) => {
         const { data, error } = await createClient()
             .from("results")
-            .select("id, user_id, time_ms, clever_index, comment")
+            .select("id, user_id, time_ms, clever_index, overall_rank, division, division_rank, comment")
             .eq("race_id", raceId)
             .order("time_ms")
         if (error) { setMessage({ text: `登録済みの記録の読み込みに失敗しました: ${error.message}`, isError: true }); return }
@@ -140,7 +163,7 @@ export function BulkResultsClient() {
 
     const handleSave = async () => {
         if (!race) { setMessage({ text: "レースを選んでください", isError: true }); return }
-        const filled = rows.filter(r => r.userId || r.timeStr || r.cleverStr || r.comment)
+        const filled = rows.filter(isFilled)
         if (filled.length === 0) { setMessage({ text: "登録する記録を入力してください", isError: true }); return }
 
         const errors: string[] = []
@@ -153,6 +176,12 @@ export function BulkResultsClient() {
             const ms = parseElapsed(r.timeStr)
             if (ms === null || ms <= 0) errors.push(`${n}行目: タイムは 3:12:34 または 45:12 の形式で入力してください`)
             if (r.cleverStr !== "" && isNaN(Number(r.cleverStr))) errors.push(`${n}行目: クレバー指数は数値で入力してください`)
+            const ranks = {
+                overall_rank: parseCount(r.overallRankStr),
+                gender_rank: parseCount(r.genderRankStr),
+                division_rank: parseCount(r.divisionRankStr),
+            }
+            if (Object.values(ranks).includes(undefined)) errors.push(`${n}行目: 順位は正の整数で入力してください`)
             return {
                 user_id: r.userId,
                 race_id: race.id,
@@ -162,6 +191,8 @@ export function BulkResultsClient() {
                 race_type: raceType,
                 time_ms: ms ?? 0,
                 clever_index: r.cleverStr === "" ? null : Number(r.cleverStr),
+                ...ranks,
+                division: r.division.trim() || null,
                 comment: r.comment.trim() === "" ? null : r.comment.trim(),
             }
         })
@@ -187,7 +218,7 @@ export function BulkResultsClient() {
     }
 
     return (
-        <div className="max-w-5xl mx-auto p-4 text-black">
+        <div className="max-w-7xl mx-auto p-4 text-black">
             {/* 1. レース選択 */}
             <section className="mb-6">
                 <h2 className="font-semibold mb-1">1. レースを選ぶ</h2>
@@ -239,6 +270,8 @@ export function BulkResultsClient() {
                                             <td className="px-2 py-0.5">{memberName(e.user_id)}</td>
                                             <td className="px-2 py-0.5 text-right font-mono">{formatTime(e.time_ms)}</td>
                                             <td className="px-2 py-0.5 text-right">{e.clever_index ?? ""}</td>
+                                            <td className="px-2 py-0.5 text-right">{formatRank(e.overall_rank)}</td>
+                                            <td className="px-2 py-0.5">{e.division ?? ""} {formatRank(e.division_rank)}</td>
                                             <td className="px-2 py-0.5 text-gray-600">{e.comment ?? ""}</td>
                                         </tr>
                                     ))}
@@ -253,6 +286,7 @@ export function BulkResultsClient() {
                     {/* 3. 入力 */}
                     <section>
                         <h2 className="font-semibold mb-1">3. 記録を入力する</h2>
+                        <DivisionDatalist id="bulk-division-options" raceId={race.id} />
                         <div className="overflow-x-auto">
                             <table className="text-sm border-collapse">
                                 <thead>
@@ -260,6 +294,7 @@ export function BulkResultsClient() {
                                         <th className="px-2 py-1">メンバー</th>
                                         <th className="px-2 py-1">タイム（ネット）</th>
                                         <th className="px-2 py-1">クレバー指数</th>
+                                        {RANK_COLUMNS.map(c => <th key={c.field} className="px-2 py-1">{c.label}</th>)}
                                         <th className="px-2 py-1">備考</th>
                                         <th className="px-2 py-1"></th>
                                     </tr>
@@ -301,11 +336,22 @@ export function BulkResultsClient() {
                                                         className="w-20 border rounded px-1 py-0.5"
                                                     />
                                                 </td>
+                                                {RANK_COLUMNS.map(c => (
+                                                    <td key={c.field} className="px-2 py-1">
+                                                        <input
+                                                            value={r[c.field]}
+                                                            inputMode={c.field === "division" ? undefined : "numeric"}
+                                                            list={c.field === "division" ? "bulk-division-options" : undefined}
+                                                            onChange={e => updateRow(r.key, { [c.field]: e.target.value })}
+                                                            className={`${c.width} border rounded px-1 py-0.5`}
+                                                        />
+                                                    </td>
+                                                ))}
                                                 <td className="px-2 py-1">
                                                     <input
                                                         value={r.comment}
                                                         onChange={e => updateRow(r.key, { comment: e.target.value })}
-                                                        className="w-64 border rounded px-1 py-0.5"
+                                                        className="w-48 border rounded px-1 py-0.5"
                                                     />
                                                 </td>
                                                 <td className="px-2 py-1">
@@ -358,6 +404,7 @@ export function BulkResultsClient() {
             <p className="mt-6 text-xs text-gray-500">
                 ※ 大会名・日付・距離は選んだレースの情報で登録されます。タイムはネットタイムを推奨（グロスは備考へ）。
                 「（アカウントなし）」はアカウントを持たない OBOG などです。
+                順位は大会の公式順位をそのまま、部門名は大会の表記のまま入力します（部門のエントリー数は種目編集で登録）。
             </p>
         </div>
     )

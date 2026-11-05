@@ -6,6 +6,7 @@ import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { useUnsavedWarning } from "@/lib/use-unsaved-warning"
 import { getAdminState } from "@/lib/admin"
+import { parseCount, countToStr } from "@/lib/ranks"
 import { HALF_KM, formatDistance, formatElapsed, formatPace, isFull, parseElapsed, pointLabel } from "@/lib/splits"
 
 type Result = {
@@ -20,6 +21,7 @@ type SplitRow = {
     key: number
     distanceStr: string
     timeStr: string
+    rankStr: string
 }
 
 export default function SplitsPage() {
@@ -39,7 +41,7 @@ export default function SplitsPage() {
         const supabase = createClient()
         const { data, error } = await supabase
             .from("result_splits")
-            .select("distance_km, elapsed_ms")
+            .select("distance_km, elapsed_ms, rank")
             .eq("result_id", resultId)
             .order("distance_km")
         if (error) { setMessage({ text: `ラップの読み込みに失敗しました: ${error.message}`, isError: true }); return }
@@ -47,9 +49,10 @@ export default function SplitsPage() {
             key: i,
             distanceStr: String(Number(s.distance_km)),
             timeStr: formatElapsed(s.elapsed_ms),
+            rankStr: countToStr(s.rank),
         }))
         // 未登録ならスタート行（ロス 0:00）を最初から表示しておく
-        setRows(saved.length > 0 ? saved : [{ key: 0, distanceStr: "0", timeStr: "0:00" }])
+        setRows(saved.length > 0 ? saved : [{ key: 0, distanceStr: "0", timeStr: "0:00", rankStr: "" }])
         setNextKey(Math.max(saved.length, 1))
         setDirty(false)
     }, [resultId])
@@ -75,7 +78,7 @@ export default function SplitsPage() {
     }, [resultId, loadSplits])
 
     const addRow = (distanceStr = "", timeStr = "") => {
-        setRows(prev => [...prev, { key: nextKey, distanceStr, timeStr }])
+        setRows(prev => [...prev, { key: nextKey, distanceStr, timeStr, rankStr: "" }])
         setNextKey(k => k + 1)
         setDirty(true)
     }
@@ -95,7 +98,7 @@ export default function SplitsPage() {
     // スタート地点（0km、号砲からスタートライン通過までのロス）を先頭に追加
     const addStart = () => {
         if (hasStart) return
-        setRows(prev => [{ key: nextKey, distanceStr: "0", timeStr: "0:00" }, ...prev])
+        setRows(prev => [{ key: nextKey, distanceStr: "0", timeStr: "0:00", rankStr: "" }, ...prev])
         setNextKey(k => k + 1)
         setDirty(true)
     }
@@ -119,6 +122,7 @@ export default function SplitsPage() {
                 timeStr: d === 0
                     ? "0:00"
                     : d === result.distance && result.time_ms ? formatElapsed((startMs ?? 0) + result.time_ms) : "",
+                rankStr: "",
             }))
         setRows(prev => [...prev, ...added].sort((a, b) => Number(a.distanceStr) - Number(b.distanceStr)))
         setNextKey(k => k + added.length)
@@ -130,6 +134,7 @@ export default function SplitsPage() {
         ...r,
         km: r.distanceStr.trim() === "" ? NaN : Number(r.distanceStr),
         ms: parseElapsed(r.timeStr),
+        rank: parseCount(r.rankStr),
     }))
     // スタートのロス（号砲 → スタートライン通過）。ネット = 通過タイム − ロス
     const startMs = parsed.find(r => r.km === 0)?.ms ?? null
@@ -156,6 +161,7 @@ export default function SplitsPage() {
             if (r.ms === null) errors.push(`${n}行目: 通過タイムは 1:23:45 または 23:45 の形式で入力してください`)
             // スタートのロスは 0:00 でもよいが、それ以外の地点は 0 より後
             else if (r.km > 0 && r.ms <= 0) errors.push(`${n}行目: 通過タイムが 0 になっています`)
+            if (r.rank === undefined) errors.push(`${n}行目: 通過順位は正の整数で入力してください`)
         })
         if (errors.length > 0) return errors
         const kms = parsed.map(r => r.km)
@@ -178,7 +184,7 @@ export default function SplitsPage() {
         // （途中で失敗しても、入力済みのラップが消えることはない）
         if (parsed.length > 0) {
             const { error } = await supabase.from("result_splits").upsert(
-                parsed.map(r => ({ result_id: resultId, distance_km: r.km, elapsed_ms: r.ms! })),
+                parsed.map(r => ({ result_id: resultId, distance_km: r.km, elapsed_ms: r.ms!, rank: r.rank ?? null })),
                 { onConflict: "result_id,distance_km" },
             )
             if (error) { setMessage({ text: `保存に失敗しました: ${error.message}`, isError: true }); return }
@@ -247,6 +253,7 @@ export default function SplitsPage() {
                             <th className="px-2 py-1">区間</th>
                             <th className="px-2 py-1 text-right">区間タイム</th>
                             <th className="px-2 py-1 text-right">ペース</th>
+                            <th className="px-2 py-1">通過順位</th>
                             <th className="px-2 py-1">削除</th>
                         </tr>
                     </thead>
@@ -287,6 +294,16 @@ export default function SplitsPage() {
                                     <td className="px-2 py-1 text-right">{lap ? formatElapsed(lap.lapMs) : ""}</td>
                                     <td className="px-2 py-1 text-right">{lap ? formatPace(lap.pace) : ""}</td>
                                     <td className="px-2 py-1">
+                                        <input
+                                            className={`w-20 px-1 border rounded ${parseCount(r.rankStr) === undefined ? "border-red-500" : ""}`}
+                                            inputMode="numeric"
+                                            placeholder="任意"
+                                            aria-label="通過順位"
+                                            value={r.rankStr}
+                                            onChange={e => updateRow(r.key, { rankStr: e.target.value })}
+                                        />
+                                    </td>
+                                    <td className="px-2 py-1">
                                         <button
                                             onClick={() => removeRow(r.key)}
                                             className="px-2 py-0.5 bg-red-600 text-white rounded hover:bg-red-700"
@@ -323,6 +340,8 @@ export default function SplitsPage() {
                 ※ 「スタート」（0km）には、号砲からスタートラインを通過するまでのロスタイムを入力します。ロスがなければ 0:00 のままで構いません。
                 <br />
                 ※ ネット（通過タイム − ロス）は自動計算されます。ゴールのネットが記録（ネットタイム）と一致するはずです。
+                <br />
+                ※ 通過順位は大会の記録に載っている場合に入力します（任意）。
             </p>
         </div>
     )

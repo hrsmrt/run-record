@@ -5,6 +5,7 @@ import { formatTime } from "@/lib/utils"
 import { SplitPoint } from "@/lib/splits"
 import { SplitTable } from "@/components/SplitTable"
 import { RaceGapChart } from "@/components/RaceGapChart"
+import { formatRank } from "@/lib/ranks"
 
 export type EventResult = {
     id: number
@@ -13,11 +14,18 @@ export type EventResult = {
     time_ms: number
     clever_index: number | null
     race_id: number
+    overall_rank: number | null
+    overall_total: number | null
+    gender_rank: number | null
+    gender_total: number | null
+    division: string | null
+    division_rank: number | null
+    division_total: number | null
 }
 
 type RaceInfo = { id: number; name: string; distance_km: number }
 
-type SortKey = "name" | "time" | "clever"
+type SortKey = "name" | "time" | "clever" | "rank"
 
 // 開催回の種目ごとに、知人の記録と（あれば）ラップを表示する
 export function EditionResults({ races, results, splits }: {
@@ -37,13 +45,13 @@ export function EditionResults({ races, results, splits }: {
     }
     const arrow = (key: SortKey) => sortKey === key ? (sortAsc ? " ↑" : " ↓") : ""
 
-    // 選んだ列で並べた比較結果（クレバー指数がない記録は昇降順どちらでも最後）
+    // 選んだ列で並べた比較結果（クレバー指数・順位がない記録は昇降順どちらでも最後）
     const compareBy = (a: EventResult, b: EventResult) => {
-        if (sortKey === "clever") {
-            if (a.clever_index == null || b.clever_index == null) {
-                return a.clever_index == null ? (b.clever_index == null ? 0 : 1) : -1
-            }
-            return (sortAsc ? 1 : -1) * (a.clever_index - b.clever_index)
+        if (sortKey === "clever" || sortKey === "rank") {
+            const va = sortKey === "clever" ? a.clever_index : a.overall_rank
+            const vb = sortKey === "clever" ? b.clever_index : b.overall_rank
+            if (va == null || vb == null) return va == null ? (vb == null ? 0 : 1) : -1
+            return (sortAsc ? 1 : -1) * (va - vb)
         }
         const diff = sortKey === "name" ? a.name.localeCompare(b.name) : a.time_ms - b.time_ms
         return (sortAsc ? 1 : -1) * diff
@@ -56,6 +64,9 @@ export function EditionResults({ races, results, splits }: {
         || a.time_ms - b.time_ms)
 
     if (sorted.length === 0) return null
+    // 順位を入力した人がいるときだけ順位の列を出す
+    const hasRank = sorted.some(r => r.overall_rank != null || r.gender_rank != null || r.division_rank != null)
+    const columns = hasRank ? 8 : 5
 
     return (
         <div className="mt-2">
@@ -79,6 +90,15 @@ export function EditionResults({ races, results, splits }: {
                                 >
                                     クレバー{arrow("clever")}
                                 </th>
+                                {hasRank && (
+                                    <>
+                                        <th className="px-1 md:px-3 py-0 text-right cursor-pointer" onClick={() => handleSort("rank")}>
+                                            総合{arrow("rank")}
+                                        </th>
+                                        <th className="px-1 md:px-3 py-0 text-right">男女別</th>
+                                        <th className="px-1 md:px-3 py-0 text-left">部門</th>
+                                    </>
+                                )}
                                 <th className="px-1 md:px-3 py-0 text-center">ラップ</th>
                             </tr>
                         </thead>
@@ -93,6 +113,15 @@ export function EditionResults({ races, results, splits }: {
                                             <td className={`px-1 md:px-3 py-0 ${r.gender === "female" ? "text-red-600" : ""}`}>{r.name}</td>
                                             <td className="px-1 md:px-3 py-0 text-right">{formatTime(r.time_ms)}</td>
                                             <td className="px-1 md:px-3 py-0 text-right">{r.clever_index ?? ""}</td>
+                                            {hasRank && (
+                                                <>
+                                                    <td className="px-1 md:px-3 py-0 text-right">{formatRank(r.overall_rank, r.overall_total)}</td>
+                                                    <td className="px-1 md:px-3 py-0 text-right">{formatRank(r.gender_rank, r.gender_total)}</td>
+                                                    <td className="px-1 md:px-3 py-0">
+                                                        {r.division ?? ""}{r.division && r.division_rank != null && " "}{formatRank(r.division_rank, r.division_total)}
+                                                    </td>
+                                                </>
+                                            )}
                                             <td className="px-1 md:px-3 py-0 text-center">
                                                 {points.length > 0 && (
                                                     <button
@@ -107,7 +136,7 @@ export function EditionResults({ races, results, splits }: {
                                         </tr>
                                         {open && (
                                             <tr>
-                                                <td colSpan={5} className="px-1 md:px-3 pb-2">
+                                                <td colSpan={columns} className="px-1 md:px-3 pb-2">
                                                     <SplitTable points={points} />
                                                 </td>
                                             </tr>

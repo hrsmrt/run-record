@@ -1,8 +1,9 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { Fragment, useState, useEffect, useRef } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { useUnsavedWarning } from "@/lib/use-unsaved-warning"
+import { RaceDivisionsEditor } from "@/components/RaceDivisionsEditor"
 
 type EditionOption = {
     id: number
@@ -21,6 +22,9 @@ type Race = {
     capacity: number | null
     entry_start_at: string | null
     entry_end_at: string | null
+    entrants_total: number | null
+    entrants_male: number | null
+    entrants_female: number | null
 }
 
 type NewRace = Omit<Race, "id">
@@ -58,11 +62,14 @@ export function EditRacesClient() {
         time_limit_minutes: null, elevation_gain_m: null,
         entry_fee: null, capacity: null,
         entry_start_at: null, entry_end_at: null,
+        entrants_total: null, entrants_male: null, entrants_female: null,
     })
     const [dirtyIds, setDirtyIds] = useState<Set<number>>(new Set())
     // 「カスタム」を選んだ既存行（プリセットと一致していてもカスタム表示にする）
     const [customIds, setCustomIds] = useState<Set<number>>(new Set())
     const [newPreset, setNewPreset] = useState("フルマラソン")
+    // 部門の編集欄を開いている種目
+    const [openDivisionsId, setOpenDivisionsId] = useState<number | null>(null)
     const [editionSearch, setEditionSearch] = useState("")
     const [showDropdown, setShowDropdown] = useState(false)
     const [message, setMessage] = useState("")
@@ -115,6 +122,9 @@ export function EditRacesClient() {
                 capacity: r.capacity,
                 entry_start_at: r.entry_start_at,
                 entry_end_at: r.entry_end_at,
+                entrants_total: r.entrants_total,
+                entrants_male: r.entrants_male,
+                entrants_female: r.entrants_female,
             }).eq("id", r.id)
             if (error) errors.push(`ID ${r.id}: ${error.message}`)
             else saved.push(r.id)
@@ -147,6 +157,7 @@ export function EditRacesClient() {
             time_limit_minutes: null, elevation_gain_m: null,
             entry_fee: null, capacity: null,
             entry_start_at: null, entry_end_at: null,
+            entrants_total: null, entrants_male: null, entrants_female: null,
         })
         setNewPreset("フルマラソン")
         setEditionSearch("")
@@ -188,12 +199,17 @@ export function EditRacesClient() {
                             <th className="px-2 py-1">定員</th>
                             <th className="px-2 py-1">エントリー開始</th>
                             <th className="px-2 py-1">エントリー終了</th>
+                            <th className="px-2 py-1">エントリー数</th>
+                            <th className="px-2 py-1">男子</th>
+                            <th className="px-2 py-1">女子</th>
+                            <th className="px-2 py-1">部門</th>
                             <th className="px-2 py-1">削除</th>
                         </tr>
                     </thead>
                     <tbody>
                         {races.map(r => (
-                            <tr key={r.id} className={`border-b ${dirtyIds.has(r.id) ? "bg-yellow-50" : ""}`}>
+                            <Fragment key={r.id}>
+                            <tr className={`border-b ${dirtyIds.has(r.id) ? "bg-yellow-50" : ""}`}>
                                 <td className="px-2 py-1">
                                     <select
                                         value={r.event_edition_id}
@@ -260,6 +276,21 @@ export function EditRacesClient() {
                                         value={toDatetimeLocal(r.entry_end_at)}
                                         onChange={e => update(r.id, "entry_end_at", fromDatetimeLocal(e.target.value))} />
                                 </td>
+                                {(["entrants_total", "entrants_male", "entrants_female"] as const).map(f => (
+                                    <td key={f} className="px-2 py-1">
+                                        <input type="number" min={1} className="w-20 px-1 border rounded" value={r[f] ?? ""}
+                                            onChange={e => update(r.id, f, e.target.value === "" ? null : Number(e.target.value))} />
+                                    </td>
+                                ))}
+                                <td className="px-2 py-1">
+                                    <button
+                                        onClick={() => setOpenDivisionsId(openDivisionsId === r.id ? null : r.id)}
+                                        aria-expanded={openDivisionsId === r.id}
+                                        className="text-blue-600 hover:underline"
+                                    >
+                                        {openDivisionsId === r.id ? "閉じる" : "編集"}
+                                    </button>
+                                </td>
                                 <td className="px-2 py-1">
                                     <button onClick={() => handleDelete(r.id)}
                                         className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700">
@@ -267,6 +298,15 @@ export function EditRacesClient() {
                                     </button>
                                 </td>
                             </tr>
+                            {openDivisionsId === r.id && (
+                                <tr className="border-b bg-gray-50">
+                                    <td colSpan={16} className="px-2 py-2">
+                                        <p className="text-xs font-semibold mb-1">部門ごとのエントリー数（保存は行ごと）</p>
+                                        <RaceDivisionsEditor raceId={r.id} />
+                                    </td>
+                                </tr>
+                            )}
+                            </Fragment>
                         ))}
                     </tbody>
                 </table>
@@ -363,6 +403,13 @@ export function EditRacesClient() {
                             value={toDatetimeLocal(newRow.entry_end_at)}
                             onChange={e => setNewRow(prev => ({ ...prev, entry_end_at: fromDatetimeLocal(e.target.value) }))} />
                     </div>
+                    {([["entrants_total", "エントリー数"], ["entrants_male", "男子"], ["entrants_female", "女子"]] as const).map(([f, label]) => (
+                        <div key={f}>
+                            <label className="text-xs text-gray-500 block mb-1">{label}</label>
+                            <input type="number" min={1} className="w-20 px-1 border rounded text-sm" value={newRow[f] ?? ""}
+                                onChange={e => setNewRow(prev => ({ ...prev, [f]: e.target.value === "" ? null : Number(e.target.value) }))} />
+                        </div>
+                    ))}
                     <button onClick={handleAdd}
                         className="px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm">
                         追加

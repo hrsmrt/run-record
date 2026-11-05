@@ -7,6 +7,8 @@ import { SplitPoint, computeLaps, formatElapsed, formatPace, pointLabel } from "
 // 通過地点ごとの通過・ネット・区間・ペースの表
 export function SplitTable({ points }: { points: SplitPoint[] }) {
     const laps = computeLaps(points)
+    // 通過順位は入力した人だけ列を出す
+    const hasRank = points.some(p => p.rank != null)
     return (
         <table className="ml-4 my-1 border-collapse text-gray-700 bg-gray-50">
             <thead>
@@ -16,6 +18,7 @@ export function SplitTable({ points }: { points: SplitPoint[] }) {
                     <th className="px-2 py-0 text-right">ネット</th>
                     <th className="px-2 py-0 text-right">区間</th>
                     <th className="px-2 py-0 text-right">ペース</th>
+                    {hasRank && <th className="px-2 py-0 text-right">通過順位</th>}
                 </tr>
             </thead>
             <tbody>
@@ -26,6 +29,7 @@ export function SplitTable({ points }: { points: SplitPoint[] }) {
                         <td className="px-2 py-0 text-right">{l.netMs !== null ? formatElapsed(l.netMs) : ""}</td>
                         <td className="px-2 py-0 text-right">{l.lapMs !== null ? formatElapsed(l.lapMs) : ""}</td>
                         <td className="px-2 py-0 text-right">{l.paceMsPerKm !== null ? formatPace(l.paceMsPerKm) : ""}</td>
+                        {hasRank && <td className="px-2 py-0 text-right">{l.rank != null ? `${l.rank.toLocaleString()}位` : ""}</td>}
                     </tr>
                 ))}
             </tbody>
@@ -43,10 +47,10 @@ export function SplitTableLoader({ resultId }: { resultId: number }) {
             const supabase = createClient()
             const { data, error } = await supabase
                 .from("result_splits")
-                .select("distance_km, elapsed_ms")
+                .select("distance_km, elapsed_ms, rank")
                 .eq("result_id", resultId)
             if (error) { setError(error.message); return }
-            setPoints((data ?? []).map(s => ({ km: Number(s.distance_km), ms: s.elapsed_ms })))
+            setPoints((data ?? []).map(s => ({ km: Number(s.distance_km), ms: s.elapsed_ms, rank: s.rank })))
         }
         fetch()
     }, [resultId])

@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client"
 import { RaceDatalist, RaceInput, useRaceOptions } from "@/components/RaceInput"
 import { MemberSelect } from "@/components/MemberSelect"
 import { getAdminState } from "@/lib/admin"
+import { countToStr, parseCount } from "@/lib/ranks"
 
 type Record = {
   id: number
@@ -18,9 +19,25 @@ type Record = {
   comment?: string
   race_id: number | null
   clever_index: number | null
+  overall_rank: number | null
+  gender_rank: number | null
+  division: string | null
+  division_rank: number | null
 }
 
-type RecordWithTimeStr = Record & { timeStr: string; cleverStr: string }
+// 入力欄の文字列（保存時に数値へ変換）
+type RecordWithTimeStr = Record & {
+  timeStr: string
+  cleverStr: string
+  overallRankStr: string
+  genderRankStr: string
+  divisionRankStr: string
+}
+
+const RANK_FIELDS = [
+  ["overallRankStr", "総合順位"],
+  ["genderRankStr", "男女別順位"],
+] as const
 
 export function EditRecordsClient() {
   const [records, setRecords] = useState<RecordWithTimeStr[]>([])
@@ -92,6 +109,9 @@ export function EditRecordsClient() {
         ...r,
         timeStr: msToTime(r.time_ms),
         cleverStr: r.clever_index == null ? "" : String(r.clever_index),
+        overallRankStr: countToStr(r.overall_rank),
+        genderRankStr: countToStr(r.gender_rank),
+        divisionRankStr: countToStr(r.division_rank),
       }))
       setRecords(formatted)
     }
@@ -129,12 +149,17 @@ export function EditRecordsClient() {
       comment: r.comment,
       race_id: r.race_id,
       clever_index: r.cleverStr === "" ? null : Number(r.cleverStr),
+      overall_rank: parseCount(r.overallRankStr),
+      gender_rank: parseCount(r.genderRankStr),
+      division: r.division?.trim() || null,
+      division_rank: parseCount(r.divisionRankStr),
     }))
     const errors: string[] = []
 
     for (const u of updates) {
       if (isNaN(u.time_ms)) { errors.push(`ID ${u.id} の時間が不正です`); continue }
       if (u.clever_index !== null && isNaN(u.clever_index)) { errors.push(`ID ${u.id} のクレバー指数が不正です`); continue }
+      if ([u.overall_rank, u.gender_rank, u.division_rank].includes(undefined)) { errors.push(`ID ${u.id} の順位は正の整数で入力してください`); continue }
       const { error } = await supabase.from("results").update({
         time_ms: u.time_ms,
         distance: u.distance,
@@ -144,6 +169,10 @@ export function EditRecordsClient() {
         comment: u.comment,
         race_id: u.race_id,
         clever_index: u.clever_index,
+        overall_rank: u.overall_rank,
+        gender_rank: u.gender_rank,
+        division: u.division,
+        division_rank: u.division_rank,
       }).eq("id", u.id)
       if (error) errors.push(`ID ${u.id}: ${error.message}`)
     }
@@ -208,7 +237,7 @@ export function EditRecordsClient() {
       {!raceOptions ? <p>読み込み中...</p> : (
       <div className="overflow-x-auto">
         <RaceDatalist id="race-options" options={raceOptions} />
-        <table className="w-full min-w-[1300px] table-auto text-left border-collapse">
+        <table className="w-full min-w-[1700px] table-auto text-left border-collapse">
           <thead>
             <tr>
               <th className="px-2 py-1">ラップ</th>
@@ -231,6 +260,9 @@ export function EditRecordsClient() {
               <th className="px-2 py-1 cursor-pointer" onClick={() => handleSort("clever_index")}>
                 クレバー指数 {sortKey==="clever_index" ? (sortAsc?"↑":"↓"):""}
               </th>
+              {RANK_FIELDS.map(([, label]) => <th key={label} className="px-2 py-1">{label}</th>)}
+              <th className="px-2 py-1">部門</th>
+              <th className="px-2 py-1">部門順位</th>
               <th className="px-2 py-1 cursor-pointer" onClick={() => handleSort("comment")}>
                 コメント {sortKey==="comment" ? (sortAsc?"↑":"↓"):""}
               </th>
@@ -266,6 +298,11 @@ export function EditRecordsClient() {
                 </td>
                 <td className="px-2 py-1 w-36"><input type="date" className={`w-36 px-1 ${record.race_id ? "bg-gray-100 text-gray-500" : ""}`} readOnly={record.race_id != null} value={record.date} onChange={e => setRecords(prev => prev.map(r => r.id===record.id?{...r,date:e.target.value}:r))}/></td>
                 <td className="px-2 py-1"><input className="w-20 px-1" inputMode="decimal" value={record.cleverStr} onChange={e => updateRow(record.id, { cleverStr: e.target.value })}/></td>
+                {RANK_FIELDS.map(([field]) => (
+                  <td key={field} className="px-2 py-1"><input className="w-20 px-1" inputMode="numeric" value={record[field]} onChange={e => updateRow(record.id, { [field]: e.target.value })}/></td>
+                ))}
+                <td className="px-2 py-1"><input className="w-32 px-1" value={record.division ?? ""} onChange={e => updateRow(record.id, { division: e.target.value })}/></td>
+                <td className="px-2 py-1"><input className="w-20 px-1" inputMode="numeric" value={record.divisionRankStr} onChange={e => updateRow(record.id, { divisionRankStr: e.target.value })}/></td>
                 <td className="px-2 py-1"><input className="w-full px-1" value={record.comment??""} onChange={e => setRecords(prev => prev.map(r => r.id===record.id?{...r,comment:e.target.value}:r))}/></td>
                 <td className="px-2 py-1"><button onClick={()=>handleDelete(record.id)} className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700">削除</button></td>
               </tr>

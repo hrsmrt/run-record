@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/client";
 import { timeToMs } from "@/lib/utils"; // 既存の timeToMs 関数を流用
 import { RaceDatalist, RaceInput, useRaceOptions } from "@/components/RaceInput";
 import { MemberSelect } from "@/components/MemberSelect";
+import { DivisionDatalist } from "@/components/RaceDivisionsEditor";
+import { parseCount } from "@/lib/ranks";
 import { getAdminState } from "@/lib/admin";
 import Link from "next/link";
 
@@ -17,6 +19,11 @@ export default function AddRecordForm() {
   const [comment, setComment] = useState("");
   const [raceId, setRaceId] = useState<number | null>(null);
   const [cleverIndex, setCleverIndex] = useState("");
+  // 順位（大会の公式順位を転記）と部門
+  const [overallRank, setOverallRank] = useState("");
+  const [genderRank, setGenderRank] = useState("");
+  const [division, setDivision] = useState("");
+  const [divisionRank, setDivisionRank] = useState("");
   const [message, setMessage] = useState("");
   // 送信後に大会検索欄を空に戻すためのキー
   const [resetKey, setResetKey] = useState(0);
@@ -59,6 +66,12 @@ export default function AddRecordForm() {
       return;
     }
 
+    const ranks = { overall_rank: parseCount(overallRank), gender_rank: parseCount(genderRank), division_rank: parseCount(divisionRank) };
+    if (Object.values(ranks).includes(undefined)) {
+      setMessage("順位は正の整数で入力してください");
+      return;
+    }
+
     const { error } = await supabase.from("results").insert({
       user_id: isAdmin && targetUserId ? targetUserId : user.id,
       time_ms: timeToMs(time),
@@ -69,6 +82,8 @@ export default function AddRecordForm() {
       comment: comment || null,
       race_id: raceId,
       clever_index: cleverIndex === "" ? null : Number(cleverIndex),
+      ...ranks,
+      division: division.trim() || null,
     });
 
     if (error) {
@@ -83,6 +98,10 @@ export default function AddRecordForm() {
       setComment("");
       setRaceId(null);
       setCleverIndex("");
+      setOverallRank("");
+      setGenderRank("");
+      setDivision("");
+      setDivisionRank("");
       setResetKey(k => k + 1);
     }
   };
@@ -211,6 +230,43 @@ export default function AddRecordForm() {
               className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2 bg-white"
             />
           </div>
+          {([
+            ["総合順位", overallRank, setOverallRank],
+            ["男女別順位", genderRank, setGenderRank],
+          ] as const).map(([label, value, set]) => (
+            <div key={label} className="flex items-center">
+              <span className="mr-2 w-32 text-right whitespace-nowrap">{label}</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={value}
+                onChange={(e) => set(e.target.value)}
+                placeholder="任意"
+                className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2 bg-white"
+              />
+            </div>
+          ))}
+          <div className="flex items-center">
+            <span className="mr-2 w-32 text-right whitespace-nowrap">部門・部門順位</span>
+            <input
+              type="text"
+              list="division-options"
+              value={division}
+              onChange={(e) => setDivision(e.target.value)}
+              placeholder="例: 男子40歳代"
+              className="flex-1 min-w-0 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2 bg-white"
+            />
+            <DivisionDatalist id="division-options" raceId={raceId} />
+            <input
+              type="text"
+              inputMode="numeric"
+              value={divisionRank}
+              onChange={(e) => setDivisionRank(e.target.value)}
+              placeholder="順位"
+              aria-label="部門順位"
+              className="ml-2 w-20 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2 bg-white"
+            />
+          </div>
           <div className="flex items-center">
             <span className="mr-2 w-32 text-right whitespace-nowrap">コメント</span>
             <input
@@ -234,6 +290,8 @@ export default function AddRecordForm() {
         ※ タイム: ネットタイムを推奨。グロスタイムはコメント欄へ
         <br />
         ※ 距離: フルマラソンは42.195, ハーフマラソンは21.0975, 100kmは100 など
+        <br />
+        ※ 順位: 大会の公式順位をそのまま入力（最近の市民マラソンはネットタイム順が多い）。部門名は大会の表記のまま
       </p>
     </div>
   );

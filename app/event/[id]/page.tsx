@@ -21,6 +21,9 @@ type Race = {
     capacity: number | null
     entry_start_at: string | null
     entry_end_at: string | null
+    entrants_total: number | null
+    entrants_male: number | null
+    entrants_female: number | null
 }
 
 type EventEdition = {
@@ -46,6 +49,16 @@ const formatDateTime = (iso: string) => {
     const d = new Date(iso)
     const pad = (n: number) => String(n).padStart(2, '0')
     return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+// エントリー数 "12,000人（男子 9,000・女子 3,000）"
+const formatEntrants = (r: Race) => {
+    const parts = [
+        r.entrants_male != null ? `男子 ${r.entrants_male.toLocaleString()}` : null,
+        r.entrants_female != null ? `女子 ${r.entrants_female.toLocaleString()}` : null,
+    ].filter(Boolean)
+    const total = r.entrants_total != null ? `${r.entrants_total.toLocaleString()}人` : ""
+    return parts.length > 0 ? `${total}（${parts.join("・")}）` : total
 }
 
 const formatTimeLimit = (minutes: number) => {
@@ -113,7 +126,7 @@ export default function EventDetailPage() {
             // この大会に紐付いた記録（公開ビュー）と、そのラップ
             const { data: resData, error: resError } = await supabase
                 .from('public_results')
-                .select('id, name, gender, time_ms, clever_index, race_id')
+                .select('id, name, gender, time_ms, clever_index, race_id, overall_rank, overall_total, gender_rank, gender_total, division, division_rank, division_total')
                 .eq('event_id', detail.id)
             if (resError) {
                 console.error('Error fetching results:', resError)
@@ -124,7 +137,7 @@ export default function EventDetailPage() {
             if (eventResults.length === 0) return
             const { data: splitData, error: splitError } = await supabase
                 .from('result_splits')
-                .select('result_id, distance_km, elapsed_ms')
+                .select('result_id, distance_km, elapsed_ms, rank')
                 .in('result_id', eventResults.map(r => r.id))
             if (splitError) {
                 console.error('Error fetching splits:', splitError)
@@ -133,7 +146,7 @@ export default function EventDetailPage() {
             const byResult = new Map<number, SplitPoint[]>()
             for (const sp of splitData ?? []) {
                 const list = byResult.get(sp.result_id) ?? []
-                list.push({ km: Number(sp.distance_km), ms: sp.elapsed_ms })
+                list.push({ km: Number(sp.distance_km), ms: sp.elapsed_ms, rank: sp.rank })
                 byResult.set(sp.result_id, list)
             }
             setSplits(byResult)
@@ -149,7 +162,7 @@ export default function EventDetailPage() {
 
     return (
         <main className="min-h-screen flex flex-col items-center p-4">
-            <div className="w-full max-w-3xl">
+            <div className="w-full max-w-6xl">
                 <nav className="flex gap-4 mb-3 text-sm">
                     <Link href="/event" className="text-blue-600 hover:underline">大会一覧</Link>
                     <Link href="/event/editions" className="text-blue-600 hover:underline">開催一覧</Link>
@@ -210,6 +223,7 @@ export default function EventDetailPage() {
                                                             <th className="px-1 md:px-3 py-0 text-right">参加費</th>
                                                             <th className="px-1 md:px-3 py-0 text-right">定員</th>
                                                             <th className="px-1 md:px-3 py-0 text-left">エントリー期間</th>
+                                                            <th className="px-1 md:px-3 py-0 text-left">エントリー数</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody className="divide-y divide-gray-200">
@@ -232,6 +246,7 @@ export default function EventDetailPage() {
                                                                 <td className="px-1 md:px-3 py-0">
                                                                     {formatEntryPeriod(r.entry_start_at, r.entry_end_at)}
                                                                 </td>
+                                                                <td className="px-1 md:px-3 py-0">{formatEntrants(r)}</td>
                                                             </tr>
                                                         ))}
                                                     </tbody>
