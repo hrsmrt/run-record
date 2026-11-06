@@ -66,6 +66,10 @@ export default function RecordTable({ view, genderFilter, distance, raceType, da
         if (view === "best" && !distance.startsWith("その他")) {
           query = query.eq("is_best", true)
         }
+      } else if (view === "best" && raceType !== "trail") {
+        // 全種目のベストは、メンバーごと・距離区分ごとに1件（トレイルは選択欄を出さないので対象外）。
+        // 距離がばらばらのその他と、時間がばらばらの時間走は除く
+        query = query.eq("is_best", true).not("category", "in", "(under100,over100,time)")
       }
       if (date_min !== "") {
         query = query.gt("date", date_min)

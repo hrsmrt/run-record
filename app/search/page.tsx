@@ -72,7 +72,7 @@ export default function SearchPage() {
             <option value="trail">トレイル</option>
           </select>
           </div>
-          {raceType !== "trail" && distance !== "all" && (
+          {raceType !== "trail" && !distance.startsWith("その他") && (
           <>
           <div className="flex-1 min-w-[80px] max-w-[200px]">
             <select
