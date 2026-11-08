@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { formatDate } from "@/components/RaceGroups"
 import { NewBadge } from "@/components/NewBadge"
-import { type Practice, RSVP_LABELS, formatStartTime, practiceTitle, todayStr } from "@/lib/practices"
+import { type Practice, RSVP_LABELS, formatKm, formatStartTime, practiceTitle, todayStr } from "@/lib/practices"
 
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"]
 const weekday = (date: string) => WEEKDAYS[new Date(`${date}T00:00:00`).getDay()]
@@ -24,6 +24,7 @@ export function UpcomingPractices({ practices }: { practices: Practice[] }) {
                         <Link href={`/practices/${p.id}`} className="font-bold text-blue-600 hover:underline">{practiceTitle(p)}</Link>
                         <NewBadge kind="practice" id={p.id} at={p.last_activity_at} />
                         {p.meeting_place && <span className="text-xs text-gray-600">{p.meeting_place}</span>}
+                        {p.has_plan_route && <span className="text-xs px-1 rounded bg-purple-50 text-purple-700">ルート案 {formatKm(p.plan_distance_km)}</span>}
                         <span className="text-xs">
                             参加 {p.rsvp_yes_count}人{p.rsvp_maybe_count > 0 && `・検討中 ${p.rsvp_maybe_count}人`}
                         </span>

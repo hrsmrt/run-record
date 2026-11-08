@@ -31,6 +31,12 @@ export type Practice = {
     last_activity_at: string | null
     // 練習録として登録済み（終わった練習）。false で今日以降なら予定
     is_recorded: boolean
+    // ルート案（地図で描いたもの）。線と GPX の場所は詳細ページのみ取得する
+    has_plan_route: boolean
+    plan_distance_km: number | null
+    plan_elevation_gain_m: number | null
+    plan_route_line?: RoutePoint[] | null
+    plan_route_path?: string | null
 }
 
 export type RsvpStatus = "yes" | "maybe" | "no"
@@ -73,7 +79,7 @@ export const formatStartTime = (t: string | null) => t ? t.substring(0, 5) : ""
 
 // 一覧で取る列（route_line は数百点あるので除く）
 export const PRACTICE_LIST_COLUMNS =
-    "id, held_on, title, distance_km, elevation_gain_m, memo, has_route, organizer_name, organizer_gender, organizer_enrollment_year, participant_count, comment_count, can_edit, am_participant, updated_at, start_time, meeting_place, rsvp_deadline, rsvp_yes_count, rsvp_maybe_count, my_rsvp, message_count, last_activity_at, is_recorded"
+    "id, held_on, title, distance_km, elevation_gain_m, memo, has_route, organizer_name, organizer_gender, organizer_enrollment_year, participant_count, comment_count, can_edit, am_participant, updated_at, start_time, meeting_place, rsvp_deadline, rsvp_yes_count, rsvp_maybe_count, my_rsvp, message_count, last_activity_at, is_recorded, has_plan_route, plan_distance_km, plan_elevation_gain_m"
 
 export type PracticeParticipant = {
     practice_id: number

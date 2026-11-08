@@ -29,7 +29,7 @@ const kmMarkers = (line: RoutePoint[], interval: number) => {
 
 // ルートを地理院地図の上に線で表示する。スタートは緑、ゴールは赤の丸。kmMarkerInterval があれば km の印を付ける。
 // 全画面は画面いっぱいに重ねる形（iPhone の Safari は要素の全画面表示に対応していないため）
-export function RouteMap({ line, className, kmMarkerInterval }: { line: RoutePoint[]; className?: string; kmMarkerInterval?: number }) {
+export function RouteMap({ line, className, kmMarkerInterval, color = "#2563eb" }: { line: RoutePoint[]; className?: string; kmMarkerInterval?: number; color?: string }) {
     const container = useRef<HTMLDivElement>(null)
     const mapRef = useRef<import("leaflet").Map | null>(null)
     const boundsRef = useRef<import("leaflet").LatLngBounds | null>(null)
@@ -47,7 +47,7 @@ export function RouteMap({ line, className, kmMarkerInterval }: { line: RoutePoi
             layers[0].addTo(map)
             L.control.layers(Object.fromEntries(GSI_LAYERS.map((l, i) => [l.name, layers[i]]))).addTo(map)
             const latlngs = line.map(([lat, lon]) => [lat, lon] as [number, number])
-            const route = L.polyline(latlngs, { color: "#2563eb", weight: 4, opacity: 0.85 }).addTo(map)
+            const route = L.polyline(latlngs, { color, weight: 4, opacity: 0.85 }).addTo(map)
             L.circleMarker(latlngs[0], { radius: 7, color: "#fff", weight: 2, fillColor: "#16a34a", fillOpacity: 1 }).bindTooltip("スタート").addTo(map)
             L.circleMarker(latlngs[latlngs.length - 1], { radius: 7, color: "#fff", weight: 2, fillColor: "#dc2626", fillOpacity: 1 }).bindTooltip("ゴール").addTo(map)
             if (kmMarkerInterval) {
@@ -66,7 +66,7 @@ export function RouteMap({ line, className, kmMarkerInterval }: { line: RoutePoi
             mapRef.current?.remove()
             mapRef.current = null
         }
-    }, [line, kmMarkerInterval])
+    }, [line, kmMarkerInterval, color])
 
     // 全画面の切り替え: 地図の大きさを測り直してルート全体を表示し、全画面中はホイールで拡大縮小できるようにする
     useEffect(() => {

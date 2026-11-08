@@ -10,6 +10,7 @@ import { type DirectoryMember, parseKm, todayStr } from "@/lib/practices"
 import type { RoutePoint } from "@/lib/gpx"
 import { RouteMap } from "@/components/RouteMap"
 import { GpxPicker, type GpxSelection } from "@/components/GpxPicker"
+import { RoutePlanner, type PlanSelection } from "@/components/RoutePlanner"
 
 const ROUTE_BUCKET = "practice-routes"
 
@@ -37,6 +38,9 @@ export function PracticeForm({ practiceId }: { practiceId?: number }) {
     const [participants, setParticipants] = useState<Set<string>>(new Set())
     // 登録済みのルート
     const [savedRoute, setSavedRoute] = useState<{ path: string; line: RoutePoint[] } | null>(null)
+    // ルート案（地図で描いたもの。実際に走ったルートとは別）
+    const [savedPlan, setSavedPlan] = useState<{ path: string; line: RoutePoint[] } | null>(null)
+    const [plan, setPlan] = useState<PlanSelection>({ changed: false, route: null, computing: false })
     const [removeRoute, setRemoveRoute] = useState(false)
     // 新しく選んだ GPX
     const [gpx, setGpx] = useState<GpxSelection>({ hasFile: false, route: null, error: "" })
@@ -71,7 +75,7 @@ export function PracticeForm({ practiceId }: { practiceId?: number }) {
             }
             const { data: pr } = await supabase
                 .from("practices")
-                .select("held_on, title, organizer_id, distance_km, memo, route_path, route_line, start_time, meeting_place, rsvp_deadline, is_recorded")
+                .select("held_on, title, organizer_id, distance_km, memo, route_path, route_line, start_time, meeting_place, rsvp_deadline, is_recorded, plan_route_path, plan_route_line")
                 .eq("id", practiceId)
                 .maybeSingle()
             const { data: canEdit } = await supabase.rpc("practice_can_edit", { p_practice_id: practiceId })
@@ -87,6 +91,7 @@ export function PracticeForm({ practiceId }: { practiceId?: number }) {
             setRsvpDeadline(pr.rsvp_deadline ?? "")
             setIsRecorded(pr.is_recorded)
             if (pr.route_path && pr.route_line) setSavedRoute({ path: pr.route_path, line: pr.route_line as RoutePoint[] })
+            if (pr.plan_route_path && pr.plan_route_line) setSavedPlan({ path: pr.plan_route_path, line: pr.plan_route_line as RoutePoint[] })
             setParticipants(new Set((pps ?? []).map(p => p.user_id as string)))
             setStatus("ok")
         }
@@ -129,6 +134,34 @@ export function PracticeForm({ practiceId }: { practiceId?: number }) {
         return null
     }
 
+    // ルート案を置き換える・消す（描き直したときだけ）。失敗したらメッセージを返す
+    const savePlan = async (id: number): Promise<string | null> => {
+        if (!plan.changed) return null
+        const supabase = createClient()
+        if (plan.route) {
+            const path = `${id}/plan.gpx`
+            const { error: upError } = await supabase.storage.from(ROUTE_BUCKET).upload(
+                path, new Blob([plan.route.gpxText], { type: "application/gpx+xml" }),
+                { upsert: true, contentType: "application/gpx+xml" },
+            )
+            if (upError) return upError.message
+            const { error } = await supabase.from("practices").update({
+                plan_route_path: path, plan_route_line: plan.route.line,
+                plan_distance_km: plan.route.distanceKm, plan_elevation_gain_m: plan.route.elevationGainM,
+            }).eq("id", id)
+            return error?.message ?? null
+        }
+        if (savedPlan) {
+            const { error: rmError } = await supabase.storage.from(ROUTE_BUCKET).remove([savedPlan.path])
+            if (rmError) return rmError.message
+            const { error } = await supabase.from("practices")
+                .update({ plan_route_path: null, plan_route_line: null, plan_distance_km: null, plan_elevation_gain_m: null })
+                .eq("id", id)
+            return error?.message ?? null
+        }
+        return null
+    }
+
     // 主催者は選んだ参加メンバーから選ぶ
     const organizerOptions = useMemo(() => members.filter(m => participants.has(m.user_id)), [members, participants])
 
@@ -147,6 +180,7 @@ export function PracticeForm({ practiceId }: { practiceId?: number }) {
         if (!heldOn) { setMessage({ text: "日付を入力してください", isError: true }); return }
         if (distance === undefined) { setMessage({ text: "距離は km の数値で入力してください（例: 15.5）", isError: true }); return }
         if (participants.size === 0) { setMessage({ text: "参加メンバー（予定なら主催者）を1人以上選んでください", isError: true }); return }
+        if (plan.changed && plan.computing) { setMessage({ text: "ルート案の標高を計算中です。少し待ってから保存してください", isError: true }); return }
         if (rsvpDeadline && rsvpDeadline > heldOn) { setMessage({ text: "参加の締切は練習の日付以前にしてください", isError: true }); return }
         if (gpx.hasFile && !gpx.route) { setMessage({ text: gpx.error, isError: true }); return }
         setSaving(true)
@@ -164,7 +198,7 @@ export function PracticeForm({ practiceId }: { practiceId?: number }) {
             p_is_recorded: heldOn < todayStr() ? true : heldOn > todayStr() ? false : isRecorded,
         })
         if (error) { setSaving(false); setMessage({ text: `保存に失敗しました: ${error.message}`, isError: true }); return }
-        const routeError = await saveRoute(data as number)
+        const routeError = [await saveRoute(data as number), await savePlan(data as number)].filter(Boolean).join(" / ")
         // 日程調整の話題に、決まった練習として結び付ける（話題を立てた人・管理者のときだけ反映される）
         if (fromThreadId != null && practiceId == null) {
             await createClient().from("board_threads").update({ decided_practice_id: data }).eq("id", fromThreadId)
@@ -172,7 +206,7 @@ export function PracticeForm({ practiceId }: { practiceId?: number }) {
         setSaving(false)
         setDirty(false)
         // 練習録は保存できているので、ルートだけ失敗したときも詳細ページへ進む
-        if (routeError) alert(`練習録は保存しましたが、ルートの保存に失敗しました（${routeError}）。編集画面からもう一度 GPX を選んでください。`)
+        if (routeError) alert(`練習録は保存しましたが、ルート・ルート案の保存に失敗しました（${routeError}）。編集画面からもう一度登録してください。`)
         router.push(`/practices/${data}`)
     }
 
@@ -180,8 +214,9 @@ export function PracticeForm({ practiceId }: { practiceId?: number }) {
         if (practiceId == null || !confirm("この練習録を削除しますか？ 参加メンバーのコメントとルートも消えます。")) return
         const supabase = createClient()
         // ルートのファイルを先に消す（練習録を先に消すと、編集できる人の判定ができずファイルを消せなくなる）
-        if (savedRoute) {
-            const { error: rmError } = await supabase.storage.from(ROUTE_BUCKET).remove([savedRoute.path])
+        const files = [savedRoute?.path, savedPlan?.path].filter((f): f is string => !!f)
+        if (files.length > 0) {
+            const { error: rmError } = await supabase.storage.from(ROUTE_BUCKET).remove(files)
             if (rmError) { setMessage({ text: `ルートの削除に失敗しました: ${rmError.message}`, isError: true }); return }
         }
         const { error } = await supabase.from("practices").delete().eq("id", practiceId)
@@ -251,7 +286,15 @@ export function PracticeForm({ practiceId }: { practiceId?: number }) {
                 </fieldset>
 
                 <section className="flex flex-col gap-2">
-                    <span className="font-semibold">ルート（GPX） <span className="text-xs font-normal text-gray-500">（任意）</span></span>
+                    <span className="font-semibold">ルート案 <span className="text-xs font-normal text-gray-500">（任意。地図で描く。予定のときに参加者へ共有できます）</span></span>
+                    <RoutePlanner
+                        initialLine={savedPlan?.line ?? null}
+                        onChange={next => { setPlan(next); if (next.changed) setDirty(true) }}
+                    />
+                </section>
+
+                <section className="flex flex-col gap-2">
+                    <span className="font-semibold">実際に走ったルート（GPX） <span className="text-xs font-normal text-gray-500">（任意）</span></span>
                     {savedRoute && !gpx.hasFile && (
                         <div className="flex flex-col gap-1">
                             {!removeRoute && <RouteMap line={savedRoute.line} className="h-64 w-full rounded border" />}

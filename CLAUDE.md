@@ -93,6 +93,10 @@
   - 書き込みは本人名義、削除は本人と管理者（`is_admin_active()`）。閲覧用アカウントは読むだけ（RESTRICTIVE ポリシー、公開ビュー `public_practice_rsvps`・`public_practice_messages`・`public_board_threads`・`public_board_posts`・`public_thread_date_options`・`public_thread_date_votes`）。○△× の表の行は `voter_key`（user_id と話題 ID の md5）でそろえ、user_id は出さない
   - やりとりの一覧と書き込み欄は `components/MessageThread.tsx`（練習と掲示板で共通）
   - 新着の表示は `lib/seen.ts`（最後に見た日時を localStorage に。初めて使った日時より前の動きは新着にしない）、`public_practices.last_activity_at`・`public_board_threads.last_activity_at` と比べる
+- **練習録のルート案**（`sql/2026-11-08_practice_plan_routes.sql`）
+  - 作成・編集画面で地図をクリックして点を置き、直線でつないで描く（`components/RoutePlanner.tsx`）。点はドラッグで移動、1つ戻す・周回・往復・過去の練習録のルートから始める（`simplifyLine` で点を減らす）
+  - 標高は国土地理院の標高タイル dem_png（z14、10m メッシュ、CORS 許可あり）を canvas で読む（`lib/elevation.ts`）。点の間を25mごとに細かくして標高を付け、`processRoute()` で距離・累積標高・GPX・地図用の線を作る（`lib/route-plan.ts`）
+  - `practices.plan_route_*`・`plan_distance_km`・`plan_elevation_gain_m`、GPX は `practice-routes` の `練習録ID/plan.gpx`（権限は実際のルートと同じ）。実際に走ったルートとは別に持ち、詳細ページでは両方を出す（ルート案は紫、1kmごとの印）
 - **大会のコース**（`sql/2026-11-08_race_routes.sql`）
   - 種目ごとに1つ、メンバーが計測した GPX を `race_routes`（`races` とは別の表）と非公開バケット `race-routes`（`種目ID/route.gpx`）に保存
   - 未登録の種目への登録はその種目に自分の記録がある人と管理者（`race_route_can_edit()`、画面のボタン用に `race_route_editable()`）。差し替え・削除は登録した本人と管理者のみ（`race_route_can_replace()`、`sql/2026-11-08_race_routes_owner_only.sql`。ファイルの上書きも同じ条件）
@@ -125,6 +129,7 @@
 - `2026-11-08_practice_plans.sql` - 練習予定の項目、参加ボタン、練習ごとのやりとり、掲示板、日程調整
 - `2026-11-08_practice_recorded.sql` - 練習が記録済みかどうか（`is_recorded`）、`finish_practice()`
 - `2026-11-08_board_last_post.sql` - `public_board_threads` に最後の返信（先頭80文字・書いた人・日時）を追加
+- `2026-11-08_practice_plan_routes.sql` - 練習録のルート案の列、`public_practices` に追加
 
 #### アプリ
 - メンバー編集ページでアカウント作成（アカウントなしの人の引き継ぎ可）・既存アカウントへの紐付け・パスワード再発行
@@ -135,7 +140,8 @@
 - ホームをリンクカードから「大会の記録と練習録の新しい順の一覧」に変更し、メニューに大会情報を追加
 - 練習録の地図の全画面表示、大会のコース（種目ごとの GPX、登録した人の名前、5kmごとの印）
 - 練習予定と参加ボタン、練習ごとのやりとり、掲示板と日程調整、新着の表示
-- 今後の候補: GPX の時刻からラップを自動で入れる（ラップ入力ページの補助。GPX は保存しない）、新着のメール通知（メール配信サービスが必要）、最後に見た日時を DB に持たせて端末間でそろえる
+- 練習録のルート案（地図で描く、地理院の標高）
+- 今後の候補: ルート案を道路に沿わせる（OpenRouteService など。API キーはサーバー側で）、GPX の時刻からラップを自動で入れる（ラップ入力ページの補助。GPX は保存しない）、新着のメール通知（メール配信サービスが必要）、最後に見た日時を DB に持たせて端末間でそろえる
 
 ### 2026-11-06: 出場大会記録、入学年度、OBOG 向けの文言
 

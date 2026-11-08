@@ -109,10 +109,10 @@ export function PracticeDetail({ id }: { id: number }) {
     }
 
     // 一時的な署名付き URL でダウンロードする（ファイル置き場は非公開のため）
-    const handleDownload = async () => {
-        if (!practice?.route_path) return
+    const handleDownload = async (path: string | null | undefined, fileName: string) => {
+        if (!path) return
         const { data, error } = await createClient().storage.from("practice-routes")
-            .createSignedUrl(practice.route_path, 60, { download: `practice-${practice.held_on}.gpx` })
+            .createSignedUrl(path, 60, { download: fileName })
         if (error || !data) { setMessage({ text: `ダウンロードできませんでした: ${error?.message ?? ""}`, isError: true }); return }
         window.location.assign(data.signedUrl)
     }
@@ -193,12 +193,32 @@ export function PracticeDetail({ id }: { id: number }) {
                 )}
             </dl>
 
+            {practice.plan_route_line && practice.plan_route_line.length >= 2 && (
+                <section className="flex flex-col gap-2">
+                    <div className="flex flex-wrap items-center gap-3">
+                        <h2 className="font-bold">ルート案</h2>
+                        <span className="text-sm">
+                            {formatKm(practice.plan_distance_km)}
+                            {practice.plan_elevation_gain_m != null && `・累積標高 ${practice.plan_elevation_gain_m.toLocaleString()}m`}
+                        </span>
+                        {practice.plan_route_path && (
+                            <button onClick={() => handleDownload(practice.plan_route_path, `plan-${practice.held_on}.gpx`)} className="text-sm text-blue-600 hover:underline">GPX をダウンロード</button>
+                        )}
+                    </div>
+                    <RouteMap line={practice.plan_route_line} color="#7c3aed" kmMarkerInterval={1} />
+                    <div className="bg-white">
+                        <ElevationChart line={practice.plan_route_line} />
+                    </div>
+                    <p className="text-xs text-gray-500">※ 地図で描いた予定のルートです。GPX は Garmin Connect や Strava に「コース」として取り込めます。</p>
+                </section>
+            )}
+
             {practice.route_line && practice.route_line.length >= 2 && (
                 <section className="flex flex-col gap-2">
                     <div className="flex items-center gap-3">
-                        <h2 className="font-bold">ルート</h2>
+                        <h2 className="font-bold">{practice.plan_route_line ? "実際に走ったルート" : "ルート"}</h2>
                         {practice.route_path && (
-                            <button onClick={handleDownload} className="text-sm text-blue-600 hover:underline">GPX をダウンロード</button>
+                            <button onClick={() => handleDownload(practice.route_path, `practice-${practice.held_on}.gpx`)} className="text-sm text-blue-600 hover:underline">GPX をダウンロード</button>
                         )}
                     </div>
                     <RouteMap line={practice.route_line} />
