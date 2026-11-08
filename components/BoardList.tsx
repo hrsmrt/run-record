@@ -7,7 +7,8 @@ import { VIEWER_ROLE } from "@/lib/viewer"
 import { fetchAll } from "@/lib/fetch-all"
 import { NewBadge } from "@/components/NewBadge"
 import { formatDateTime } from "@/components/MessageThread"
-import type { BoardThread } from "@/lib/board"
+import { BOARD_THREAD_COLUMNS, type BoardThread } from "@/lib/board"
+import { EnrollmentTag } from "@/components/EnrollmentTag"
 
 // 掲示板の話題の一覧（最後に動きがあった順）
 export function BoardList() {
@@ -21,7 +22,7 @@ export function BoardList() {
             const { data: { user } } = await supabase.auth.getUser()
             setCanCreate(!!user && user.app_metadata?.role !== VIEWER_ROLE)
             setThreads(await fetchAll<BoardThread>((from, to) => supabase.from("public_board_threads")
-                .select("id, title, author_name, author_gender, author_enrollment_year, decided_practice_id, created_at, updated_at, post_count, has_poll, last_activity_at, is_mine, can_edit")
+                .select(BOARD_THREAD_COLUMNS)
                 .order("last_activity_at", { ascending: false }).range(from, to)))
         }
         load().catch((e: Error) => setError(e.message))
@@ -58,6 +59,11 @@ export function BoardThreadItem({ thread: t }: { thread: BoardThread }) {
             )}
             <span className="text-xs text-gray-600">{t.author_name ?? "（退会したメンバー）"}</span>
             <span className="text-xs text-gray-500">返信{t.post_count}件・最終 {formatDateTime(t.last_activity_at)}</span>
+            {t.last_post_excerpt && (
+                <p className="basis-full text-xs text-gray-600 truncate">
+                    {t.last_post_author_name ?? "（退会したメンバー）"}<EnrollmentTag year={t.last_post_author_enrollment_year} />: {t.last_post_excerpt.replace(/\s+/g, " ")}
+                </p>
+            )}
         </li>
     )
 }

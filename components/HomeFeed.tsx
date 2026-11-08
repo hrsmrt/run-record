@@ -13,10 +13,15 @@ import {
 import { UpcomingPractices } from "@/components/UpcomingPractices"
 import { BoardThreadItem } from "@/components/BoardList"
 import { NewBadge } from "@/components/NewBadge"
-import type { BoardThread } from "@/lib/board"
+import { BOARD_THREAD_COLUMNS, type BoardThread } from "@/lib/board"
+import { isNew } from "@/lib/seen"
 
-// 掲示板は最近動きがあった話題をいくつか出す
+// 掲示板は新着を先に、残りを最近動きがあった順で、合わせて BOARD_COUNT 件出す
+// （新着かはブラウザに覚えた日時で決まるので、多めに取って画面側で並べ直す）
 const BOARD_COUNT = 5
+const BOARD_FETCH = 30
+
+type NewCounts = { plans: number; board: number; practices: number }
 
 // 最初に表示する件数と、「さらに表示」で増やす件数
 const PAGE = 15
@@ -34,6 +39,7 @@ export function HomeFeed() {
     const [items, setItems] = useState<FeedItem[] | null>(null)
     const [upcoming, setUpcoming] = useState<Practice[]>([])
     const [threads, setThreads] = useState<BoardThread[]>([])
+    const [newCounts, setNewCounts] = useState<NewCounts>({ plans: 0, board: 0, practices: 0 })
     const [shownCount, setShownCount] = useState(PAGE)
     const [error, setError] = useState("")
 
@@ -46,13 +52,20 @@ export function HomeFeed() {
                     .order("held_on", { ascending: false }).order("id", { ascending: false }).range(from, to)),
                 fetchAll<PracticeParticipant>((from, to) => supabase.from("public_practice_participants").select("*")
                     .order("practice_id").range(from, to)),
-                supabase.from("public_board_threads")
-                    .select("id, title, author_name, author_gender, author_enrollment_year, decided_practice_id, created_at, updated_at, post_count, has_poll, last_activity_at, is_mine, can_edit")
-                    .order("last_activity_at", { ascending: false }).limit(BOARD_COUNT),
+                supabase.from("public_board_threads").select(BOARD_THREAD_COLUMNS)
+                    .order("last_activity_at", { ascending: false }).limit(BOARD_FETCH),
             ])
             // 予定（今日以降）は上にまとめ、日付の近い順にする
-            setUpcoming(practices.filter(isUpcoming).reverse())
-            setThreads((threadData ?? []) as BoardThread[])
+            const plans = practices.filter(isUpcoming).reverse()
+            setUpcoming(plans)
+            const allThreads = (threadData ?? []) as BoardThread[]
+            const newThreads = allThreads.filter(t => isNew("thread", t.id, t.last_activity_at))
+            setThreads([...newThreads, ...allThreads.filter(t => !newThreads.includes(t))].slice(0, BOARD_COUNT))
+            setNewCounts({
+                plans: plans.filter(p => isNew("practice", p.id, p.last_activity_at)).length,
+                board: newThreads.length,
+                practices: practices.filter(p => !isUpcoming(p) && isNew("practice", p.id, p.last_activity_at)).length,
+            })
             const byPractice = new Map<number, PracticeParticipant[]>()
             for (const p of participants) byPractice.set(p.practice_id, [...(byPractice.get(p.practice_id) ?? []), p])
             const merged: FeedItem[] = [
@@ -74,17 +87,18 @@ export function HomeFeed() {
 
     return (
         <div className="w-full max-w-4xl mx-auto flex flex-col gap-4 text-black">
-            <section className="flex flex-col gap-1">
+            <NewsLine counts={newCounts} />
+            <section id="home-plans" className="flex flex-col gap-1 scroll-mt-4">
                 <h2 className="font-bold flex items-center gap-3">
-                    今後の練習予定
+                    今後の練習予定{newCounts.plans > 0 && <span className="text-xs font-normal text-red-600">新着 {newCounts.plans}件</span>}
                     <Link href="/practices" className="text-xs font-normal text-blue-600 hover:underline">練習録へ</Link>
                 </h2>
                 <UpcomingPractices practices={upcoming} />
             </section>
             {threads.length > 0 && (
-                <section className="flex flex-col gap-1">
+                <section id="home-board" className="flex flex-col gap-1 scroll-mt-4">
                     <h2 className="font-bold flex items-center gap-3">
-                        掲示板
+                        掲示板{newCounts.board > 0 && <span className="text-xs font-normal text-red-600">新着 {newCounts.board}件</span>}
                         <Link href="/board" className="text-xs font-normal text-blue-600 hover:underline">すべての話題</Link>
                     </h2>
                     <ul className="flex flex-col gap-1">
@@ -92,7 +106,9 @@ export function HomeFeed() {
                     </ul>
                 </section>
             )}
-            <h2 className="font-bold mt-2">最近の記録・練習</h2>
+            <h2 id="home-feed" className="font-bold mt-2 flex items-center gap-3 scroll-mt-4">
+                最近の記録・練習{newCounts.practices > 0 && <span className="text-xs font-normal text-red-600">練習の新着 {newCounts.practices}件</span>}
+            </h2>
             {items.length === 0 && <p className="text-sm">まだ記録も練習録もありません。</p>}
             {items.slice(0, shownCount).map(item => item.kind === "race" ? (
                 <section key={item.key} className="bg-white p-2">
@@ -137,5 +153,26 @@ export function HomeFeed() {
                 すべての練習は <Link href="/practices" className="text-blue-600 hover:underline">練習録</Link> から
             </p>
         </div>
+    )
+}
+
+// ホームの一番上のお知らせ。新着がある欄だけを出し、押すとその欄へ移動する
+function NewsLine({ counts }: { counts: NewCounts }) {
+    const parts = [
+        { n: counts.plans, label: "練習予定", href: "#home-plans" },
+        { n: counts.board, label: "掲示板", href: "#home-board" },
+        { n: counts.practices, label: "練習録", href: "#home-feed" },
+    ].filter(p => p.n > 0)
+    if (parts.length === 0) return null
+    return (
+        <p className="bg-red-50 border border-red-200 rounded px-3 py-2 text-sm" role="status">
+            <span className="font-bold text-red-600 mr-2">新着</span>
+            {parts.map((p, i) => (
+                <span key={p.href}>
+                    {i > 0 && "・"}
+                    <a href={p.href} className="text-blue-600 hover:underline">{p.label} {p.n}件</a>
+                </span>
+            ))}
+        </p>
     )
 }

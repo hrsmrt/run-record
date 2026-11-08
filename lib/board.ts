@@ -16,7 +16,16 @@ export type BoardThread = {
     last_activity_at: string
     is_mine: boolean
     can_edit: boolean
+    // 最後の返信（先頭80文字）。返信がなければ null
+    last_post_excerpt: string | null
+    last_post_author_name: string | null
+    last_post_author_enrollment_year: number | null
+    last_post_at: string | null
 }
+
+// 一覧で取る列（本文は除く）
+export const BOARD_THREAD_COLUMNS =
+    "id, title, author_name, author_gender, author_enrollment_year, decided_practice_id, created_at, updated_at, post_count, has_poll, last_activity_at, is_mine, can_edit, last_post_excerpt, last_post_author_name, last_post_author_enrollment_year, last_post_at"
 
 export type BoardPost = ThreadMessage & { thread_id: number }
 
