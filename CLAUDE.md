@@ -12,7 +12,7 @@
 - `/latest` - 最近の記録（大会ごと。今年度の大会と直近20大会の多い方）
 - `/races` - 出場大会記録（大会ごとに新しい順。年度・大会名・メンバー名・種目・入学年度で絞り込み、条件は URL に保持）
 - `/practices` - 練習録（新しい順。年度・参加メンバー名で絞り込み）
-- `/practices/[id]` - 練習録の詳細（主催者・距離・主催者コメント・参加メンバー・コメント。コメントは参加メンバーのみ）
+- `/practices/[id]` - 練習録の詳細（主催者・距離・累積標高・主催者コメント・ルートの地図と高低差・GPX ダウンロード・参加メンバー・コメント。コメントは参加メンバーのみ）
 - `/practices/new`・`/practices/[id]/edit` - 練習録の作成・編集（メンバーのみ。編集は作った人と管理者）
 - `/search` - 検索ページ
 - `/links` - リンク集
@@ -76,6 +76,11 @@
   - 保存は `save_practice()`（呼んだ人の権限で動き、参加メンバーの付け外しも1回で）。編集できるかは `practice_can_edit()`
   - 参加メンバーの選択は `member_directory()`、その場での「アカウントなし」の追加は `add_pending_member()`（どちらもメンバーのみ、閲覧用は不可）
   - 表示は `public_practices`・`public_practice_participants`・`public_practice_comments`（ID を出さない。閲覧用アカウントも読める）。名前の取得元は `member_names`（誰も直接読めない）
+- **練習録のルート**（`sql/2026-11-08_practice_routes.sql`）
+  - GPX は Storage の非公開バケット `practice-routes` に `練習録ID/route.gpx`。読むのはメンバー、置く・消すのは練習録を編集できる人（`practice_route_can_edit()` がパスの練習録IDで判定）。ダウンロードは署名付き URL
+  - 取り込みはすべてブラウザ側（`lib/gpx.ts`）: 距離はハバーサインの合計、累積標高は道のり±25mで平均し3m以上の上りだけ数える。スタート・ゴールから指定 m 以内を消し（既定300m）、位置と標高だけの GPX にして保存（時刻・心拍は入れない）。距離・累積標高は消す前の全体で数える
+  - 地図用の線 `route_line` は最大約600点に間引いた `[緯度, 経度, 標高, km]` の配列。一覧では取らない（`PRACTICE_LIST_COLUMNS`）
+  - 地図は Leaflet + 地理院タイル（淡色・標準・写真、出典表示が必要）、`components/RouteMap.tsx`。高低差は `components/ElevationChart.tsx`。Tailwind の `img { max-width: 100% }` がタイルを崩すので `globals.css` で地図内だけ外している
 - **大会レポート**: `race_reports`（開催回ごと、感想・観光の文章のみ、改行とリンク）、表示は `public_race_reports`
 - **公開ビュー**: `public_results` に一本化（旧 `public_record`・`public_full_best` など14個は削除済み）
   - `category`（5km / 10km / half / full / 100km / under100 / over100 / time）、`is_best`（利用者×区分のベスト。時間走は距離が長い方）、`has_splits`（ラップ有無）
@@ -96,15 +101,14 @@
 #### DB
 - `2026-11-08_accounts.sql` - `admin_list_members()` を作り直し（プロフィールのないアカウント・メール・最終ログインを追加）、`admin_link_account()` を追加
 - `2026-11-08_practices.sql` - 練習録（表・公開ビュー・関数）、`admin_link_account()` に練習録の付け替えを追加
+- `2026-11-08_practice_routes.sql` - GPX のファイル置き場と権限、`public_practices` に `route_line`・`route_path` を追加
 
 #### アプリ
 - メンバー編集ページでアカウント作成（アカウントなしの人の引き継ぎ可）・既存アカウントへの紐付け・パスワード再発行
 - 初回ログイン時のパスワード変更の強制、プロフィールがない人をプロフィール入力へ案内
 - 検索ページの「ベスト記録のみ」を全種目でも選べるように
-- 練習録（第1段階: 日付・タイトル・主催者・参加メンバー・距離・主催者コメント・コメント）
-
-#### 今後の候補
-- 練習録の第2段階: GPX の取り込み（Supabase Storage の非公開バケット）、国土地理院の地図にルート表示、距離・累積標高の自動計算、スタート・ゴール付近の削除、高低差のグラフ
+- 練習録（日付・タイトル・主催者・参加メンバー・距離・主催者コメント・コメント）
+- 練習録のルート（GPX の取り込み、地理院地図、距離・累積標高の自動計算、スタート・ゴール付近の削除、高低差のグラフ）
 
 ### 2026-11-06: 出場大会記録、入学年度、OBOG 向けの文言
 

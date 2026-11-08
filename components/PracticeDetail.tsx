@@ -7,6 +7,8 @@ import { LinkifiedText } from "@/components/CommentText"
 import { EnrollmentTag } from "@/components/EnrollmentTag"
 import { formatDate } from "@/components/RaceGroups"
 import { useUnsavedWarning } from "@/lib/use-unsaved-warning"
+import { RouteMap } from "@/components/RouteMap"
+import { ElevationChart } from "@/components/ElevationChart"
 import {
     type Practice, type PracticeComment, type PracticeParticipant,
     compareParticipants, formatKm, practiceTitle,
@@ -46,6 +48,15 @@ export function PracticeDetail({ id }: { id: number }) {
     }, [id])
 
     useEffect(() => { load() }, [load])
+
+    // 一時的な署名付き URL でダウンロードする（ファイル置き場は非公開のため）
+    const handleDownload = async () => {
+        if (!practice?.route_path) return
+        const { data, error } = await createClient().storage.from("practice-routes")
+            .createSignedUrl(practice.route_path, 60, { download: `practice-${practice.held_on}.gpx` })
+        if (error || !data) { setMessage({ text: `ダウンロードできませんでした: ${error?.message ?? ""}`, isError: true }); return }
+        window.location.assign(data.signedUrl)
+    }
 
     const startEdit = () => { setDraft(mine?.body ?? ""); setEditing(true); setMessage(null) }
 
@@ -96,7 +107,10 @@ export function PracticeDetail({ id }: { id: number }) {
                     {practice.organizer_name ?? "—"}<EnrollmentTag year={practice.organizer_enrollment_year} />
                 </dd>
                 <dt className="font-semibold">距離</dt>
-                <dd>{formatKm(practice.distance_km) || "—"}</dd>
+                <dd>
+                    {formatKm(practice.distance_km) || "—"}
+                    {practice.elevation_gain_m != null && <span className="ml-3">累積標高 {practice.elevation_gain_m.toLocaleString()}m</span>}
+                </dd>
                 <dt className="font-semibold">参加</dt>
                 <dd>{practice.participant_count}人</dd>
                 {practice.memo && (
@@ -106,6 +120,22 @@ export function PracticeDetail({ id }: { id: number }) {
                     </>
                 )}
             </dl>
+
+            {practice.route_line && practice.route_line.length >= 2 && (
+                <section className="flex flex-col gap-2">
+                    <div className="flex items-center gap-3">
+                        <h2 className="font-bold">ルート</h2>
+                        {practice.route_path && (
+                            <button onClick={handleDownload} className="text-sm text-blue-600 hover:underline">GPX をダウンロード</button>
+                        )}
+                    </div>
+                    <RouteMap line={practice.route_line} />
+                    <div className="bg-white">
+                        <ElevationChart line={practice.route_line} />
+                    </div>
+                    <p className="text-xs text-gray-500">※ スタート・ゴール付近は表示していない場合があります。</p>
+                </section>
+            )}
 
             <section>
                 <h2 className="font-bold mb-1">参加メンバー</h2>

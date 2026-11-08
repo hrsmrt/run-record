@@ -5,7 +5,7 @@ import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { VIEWER_ROLE } from "@/lib/viewer"
 import { formatDate, fiscalYearOf } from "@/components/RaceGroups"
-import { type Practice, type PracticeParticipant, compareParticipants, formatKm, practiceTitle } from "@/lib/practices"
+import { PRACTICE_LIST_COLUMNS, type Practice, type PracticeParticipant, compareParticipants, formatKm, practiceTitle } from "@/lib/practices"
 
 // Supabase が1回に返す最大件数（これより多いときは続きを取得する）
 const PAGE_SIZE = 1000
@@ -36,7 +36,7 @@ export function PracticeList() {
             const { data: { user } } = await supabase.auth.getUser()
             setCanCreate(!!user && user.app_metadata?.role !== VIEWER_ROLE)
             const [prs, pps] = await Promise.all([
-                fetchAll<Practice>((from, to) => supabase.from("public_practices").select("*")
+                fetchAll<Practice>((from, to) => supabase.from("public_practices").select(PRACTICE_LIST_COLUMNS)
                     .order("held_on", { ascending: false }).order("id", { ascending: false }).range(from, to)),
                 fetchAll<PracticeParticipant>((from, to) => supabase.from("public_practice_participants").select("*")
                     .order("practice_id").range(from, to)),
@@ -89,6 +89,7 @@ export function PracticeList() {
                             <span className="font-mono text-gray-600">{formatDate(p.held_on)}</span>
                             <Link href={`/practices/${p.id}`} className="font-bold text-blue-600 hover:underline">{practiceTitle(p)}</Link>
                             {p.distance_km != null && <span className="text-xs text-gray-500">{formatKm(p.distance_km)}</span>}
+                            {p.has_route && <span className="text-xs px-1 rounded bg-green-50 text-green-700">ルート</span>}
                             <span className="text-xs text-gray-600">
                                 {list.length}人: {list.map(n => n.name ?? "名前未設定").join("、")}
                             </span>

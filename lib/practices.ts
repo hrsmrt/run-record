@@ -1,4 +1,5 @@
 // 練習録の型と書式
+import type { RoutePoint } from "@/lib/gpx"
 
 export type Practice = {
     id: number
@@ -16,7 +17,14 @@ export type Practice = {
     can_edit: boolean
     am_participant: boolean
     updated_at: string
+    // 詳細ページのみ取得する（一覧では重いので取らない）
+    route_line?: RoutePoint[] | null
+    route_path?: string | null
 }
+
+// 一覧で取る列（route_line は数百点あるので除く）
+export const PRACTICE_LIST_COLUMNS =
+    "id, held_on, title, distance_km, elevation_gain_m, memo, has_route, organizer_name, organizer_gender, organizer_enrollment_year, participant_count, comment_count, can_edit, am_participant, updated_at"
 
 export type PracticeParticipant = {
     practice_id: number
