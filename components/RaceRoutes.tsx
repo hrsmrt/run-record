@@ -34,7 +34,8 @@ const formatLocalDate = (iso: string) => {
 }
 
 // 開催回の種目ごとのコース（メンバーが計測した GPX）。
-// 登録・差し替え・削除は、その種目に自分の記録がある人と管理者（editable に入っている種目）
+// まだない種目への登録は、その種目に自分の記録がある人と管理者（editable に入っている種目）。
+// 登録済みのコースの差し替え・削除は、登録した本人と管理者（route.can_edit）
 export function RaceRoutes({ races, routes, editable, onChanged }: {
     races: RaceInfo[]
     routes: Map<number, RaceRouteInfo>
@@ -42,21 +43,22 @@ export function RaceRoutes({ races, routes, editable, onChanged }: {
     onChanged: () => void
 }) {
     const shown = races.filter(r => routes.has(r.id) || editable.has(r.id))
+    // 登録済みのコースを差し替えられるかは route.can_edit で判断する（editable は未登録の種目への登録用）
     if (shown.length === 0) return null
     return (
         <div className="mt-2 flex flex-col gap-1">
             <h4 className="text-xs font-bold text-gray-600">コース</h4>
             {shown.map(r => (
-                <RaceRouteRow key={r.id} race={r} route={routes.get(r.id) ?? null} editable={editable.has(r.id)} onChanged={onChanged} />
+                <RaceRouteRow key={r.id} race={r} route={routes.get(r.id) ?? null} onChanged={onChanged} />
             ))}
         </div>
     )
 }
 
-function RaceRouteRow({ race, route, editable, onChanged }: {
+// route がない行は、登録できる人にだけ表示される（RaceRoutes で絞っている）
+function RaceRouteRow({ race, route, onChanged }: {
     race: RaceInfo
     route: RaceRouteInfo | null
-    editable: boolean
     onChanged: () => void
 }) {
     const [line, setLine] = useState<RoutePoint[] | null>(null)
@@ -144,7 +146,7 @@ function RaceRouteRow({ race, route, editable, onChanged }: {
                             {open ? "地図を閉じる" : "地図を表示"}
                         </button>
                         <button onClick={handleDownload} className="text-xs text-blue-600 hover:underline">GPX をダウンロード</button>
-                        {editable && !uploading && (
+                        {route.can_edit && !uploading && (
                             <>
                                 <button onClick={() => setUploading(true)} className="text-xs text-blue-600 hover:underline">差し替え</button>
                                 <button onClick={handleDelete} className="text-xs text-red-600 hover:underline">削除</button>
@@ -171,7 +173,7 @@ function RaceRouteRow({ race, route, editable, onChanged }: {
                         <button onClick={() => { setUploading(false); setGpx({ hasFile: false, route: null, error: "" }) }} className="text-xs text-gray-600 hover:underline">やめる</button>
                     </div>
                     <p className="text-xs text-gray-500">
-                        登録した人の名前が表示されます。登録・差し替え・削除は、この種目に記録がある人と管理者ができます。
+                        登録した人の名前が表示されます。登録はこの種目に記録がある人、差し替え・削除は登録した本人と管理者ができます。
                     </p>
                 </div>
             )}

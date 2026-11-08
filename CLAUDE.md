@@ -83,7 +83,8 @@
   - 地図は Leaflet + 地理院タイル（淡色・標準・写真、出典表示が必要）、`components/RouteMap.tsx`。高低差は `components/ElevationChart.tsx`。Tailwind の `img { max-width: 100% }` がタイルを崩すので `globals.css` で地図内だけ外している
 - **大会のコース**（`sql/2026-11-08_race_routes.sql`）
   - 種目ごとに1つ、メンバーが計測した GPX を `race_routes`（`races` とは別の表）と非公開バケット `race-routes`（`種目ID/route.gpx`）に保存
-  - 登録・差し替え・削除はその種目に自分の記録がある人と管理者（`race_route_can_edit()`、画面のボタン用に `race_route_editable()`）。`uploaded_by` は RLS で本人に固定し、`public_race_routes` で登録した人の名前を出す
+  - 未登録の種目への登録はその種目に自分の記録がある人と管理者（`race_route_can_edit()`、画面のボタン用に `race_route_editable()`）。差し替え・削除は登録した本人と管理者のみ（`race_route_can_replace()`、`sql/2026-11-08_race_routes_owner_only.sql`。ファイルの上書きも同じ条件）
+  - `uploaded_by` は RLS で本人に固定し、`public_race_routes` で登録した人の名前を出す（`can_edit` は差し替え・削除できるか）。差し替えると前の GPX は上書きされ残らない
   - 大会詳細の開催回ごとに `components/RaceRoutes.tsx`。地図は「地図を表示」で開いたときに `route_line` を取る。5kmごとの印（GPS の目安）
   - GPX の選択・消す範囲・プレビューは練習録と共通の `components/GpxPicker.tsx`（大会は既定で消さない）
 - **大会レポート**: `race_reports`（開催回ごと、感想・観光の文章のみ、改行とリンク）、表示は `public_race_reports`
@@ -108,6 +109,7 @@
 - `2026-11-08_practices.sql` - 練習録（表・公開ビュー・関数）、`admin_link_account()` に練習録の付け替えを追加
 - `2026-11-08_practice_routes.sql` - GPX のファイル置き場と権限、`public_practices` に `route_line`・`route_path` を追加
 - `2026-11-08_race_routes.sql` - 大会のコース（`race_routes`、ファイル置き場、`public_race_routes`）
+- `2026-11-08_race_routes_owner_only.sql` - コースの差し替え・削除を登録した本人と管理者に限る
 
 #### アプリ
 - メンバー編集ページでアカウント作成（アカウントなしの人の引き継ぎ可）・既存アカウントへの紐付け・パスワード再発行
