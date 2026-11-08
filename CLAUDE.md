@@ -94,7 +94,7 @@
 - **メンバーの非表示**（`sql/2026-11-08_hidden_members.sql`）: `profiles.is_hidden`・`profiles_pending.is_hidden`（`member_names.is_hidden`）。管理者がメンバー編集でチェック（`admin_set_member_hidden()`）。非表示の人は `public_results`・`member_directory()`・`entry_member_list()`・`public_practice_participants`・`public_practice_rsvps` から除く（検証用の架空のメンバー向け。書き込み類は残る）
 - **メンバーによる大会・開催回・種目の追加**（同じ SQL）
   - `events`・`event_editions`・`races` に `created_by`。追加はメンバー全員、修正・削除は追加した本人と管理者（既存の行は管理者のみ）。`public_catalog_creators` で大会詳細に「追加: 〇〇」
-  - 選ぶ・追加するのは `components/RacePicker.tsx`（大会 → 開催日 → 種目。似た名前の大会を「この大会ではありませんか？」と出す。`normalizeEventName` は空白・第〇回・年・「大会」を無視）。記録追加・一括登録・幹事の入口で使う
+  - 選ぶ・追加するのは `components/RacePicker.tsx`（大会 → 開催日 → 種目。最初は「2週間後〜半年前に登録済みの開催日がある大会」と「前回の開催日の52週後（推定日）が2週間後〜2か月前で、今年の開催日が未登録（推定日の前後45日に開催回がない）の大会」を日付の新しい順、検索はすべてから。推定の大会は一覧で前回の開催日を「（昨年）」付きでオレンジ表示し、開催日の段階で推定日を入れた「今年の開催日を追加」ボタンを出す。開催日は今日までを近い順 → これから先。似た名前の大会を「この大会ではありませんか？」と出す。`normalizeEventName` は空白・第〇回・年・「大会」を無視）。記録追加・一括登録・幹事の入口で使う
   - 同じ大会の同じ開催日・同じ開催回の同じ距離と名前の種目は一意の制約（既存の重複があれば付けずに NOTICE）
   - 管理者は `admin_merge_events()`・`admin_merge_editions()`・`admin_merge_races()` でまとめる（開催回・種目・記録・部門・コース・レポート・幹事を付け替え、同じ日・同じ種目はさらにまとめる。同じ人の記録・レポート、両方にあるコースは止める）。件数の確認は `admin_merge_preview()`
 - **開催回ごとの幹事**（`sql/2026-11-08_edition_organizers.sql`）

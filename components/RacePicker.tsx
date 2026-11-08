@@ -11,6 +11,26 @@ export type CatalogEvent = { id: number; name: string; type: string; prefecture:
 export type CatalogEdition = { id: number; event_id: number; held_on: string | null; edition_number: number | null }
 export type CatalogRace = { id: number; event_edition_id: number; name: string; distance_km: number }
 
+// 最初の一覧に出す範囲（記録を登録するのはほとんどが終わったばかりの大会のため）
+// ・登録済みの開催日: 2週間後〜半年前
+// ・推定の候補（毎年の大会で今年の開催日が未登録）: 前回の開催日の52週後（同じ曜日）が2週間後〜2か月前のもの。
+//   今年は去年より早い・遅いこともあるので、範囲を前後に取る
+const RECENT_DAYS = 183
+const AHEAD_DAYS = 14
+const ESTIMATE_BACK_DAYS = 61
+// 推定日の前後この日数に開催回があれば「今年の分は登録済み」とみなして推定を出さない
+const SAME_CYCLE_DAYS = 45
+const DAY_MS = 86400000
+const WEEKS_52_MS = 364 * DAY_MS
+
+const isoDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+
+// 前回の開催日が今年から見て何年前か（推定の候補の表示用）
+const yearsAgoLabel = (date: string) => {
+    const diff = new Date().getFullYear() - Number(date.substring(0, 4))
+    return diff === 1 ? "昨年" : diff === 2 ? "一昨年" : `${diff}年前`
+}
+
 const formatDate = (d: string) => `${d.substring(0, 4)}/${d.substring(5, 7)}/${d.substring(8, 10)}`
 
 // 大会名の比較用: 空白・「第〇回」・年・「大会」を除き、ひらがな・カタカナをそろえる（表記の違いによる重複を見つけるため）
@@ -57,6 +77,8 @@ export function RacePicker({ value, onChange, allowCreate = true }: {
     const [eventId, setEventId] = useState<number | null>(null)
     const [editionId, setEditionId] = useState<number | null>(null)
     const [query, setQuery] = useState("")
+    // 半年より前の大会も一覧に出す
+    const [showAll, setShowAll] = useState(false)
     const [creating, setCreating] = useState<"event" | "edition" | "race" | null>(null)
     const [busy, setBusy] = useState(false)
     const [message, setMessage] = useState("")
@@ -78,19 +100,47 @@ export function RacePicker({ value, onChange, allowCreate = true }: {
     const race = races.find(r => r.id === value) ?? null
     const eventTypes = useMemo(() => [...new Set(["road", "trail", ...(events ?? []).map(e => e.type).filter(Boolean)])], [events])
 
-    // 大会の候補（名前で検索。開催回が新しい大会を上に）
-    const latestDate = useMemo(() => {
-        const m = new Map<number, string>()
-        for (const ed of editions) if (ed.held_on && (m.get(ed.event_id) ?? "") < ed.held_on) m.set(ed.event_id, ed.held_on)
+    // 大会の候補。検索していないときは上の範囲だけ（「すべての大会を表示」で全部）、日付の新しい順
+    const today = isoDate(new Date())
+    const aheadTo = isoDate(new Date(Date.now() + AHEAD_DAYS * DAY_MS))
+    const recentFrom = isoDate(new Date(Date.now() - RECENT_DAYS * DAY_MS))
+    const estimateFrom = isoDate(new Date(Date.now() - ESTIMATE_BACK_DAYS * DAY_MS))
+    // 大会ごとの並べる日付: 登録済みで2週間後までの一番新しい開催日、なければ推定日
+    const eventDates = useMemo(() => {
+        const m = new Map<number, { date: string; estimated: boolean; from?: string }>()
+        const byEvent = new Map<number, string[]>()
+        for (const ed of editions) if (ed.held_on) byEvent.set(ed.event_id, [...(byEvent.get(ed.event_id) ?? []), ed.held_on])
+        byEvent.forEach((dates, id) => {
+            const real = dates.filter(d => d <= aheadTo).sort().at(-1)
+            if (real) m.set(id, { date: real, estimated: false })
+            // 前回の開催日から52週ずつ進め、推定の範囲に入れば候補（今年の分が登録済みなら出さない）
+            const latest = dates.sort().at(-1)!
+            let t = new Date(`${latest}T00:00:00`).getTime() + WEEKS_52_MS
+            while (isoDate(new Date(t)) <= aheadTo) {
+                const est = isoDate(new Date(t))
+                const registered = dates.some(d => Math.abs(new Date(`${d}T00:00:00`).getTime() - t) <= SAME_CYCLE_DAYS * DAY_MS)
+                if (est >= estimateFrom && !registered && (!real || est > real)) m.set(id, { date: est, estimated: true, from: latest })
+                t += WEEKS_52_MS
+            }
+        })
         return m
-    }, [editions])
+    }, [editions, aheadTo, estimateFrom])
+    const searching = query.trim() !== ""
     const eventOptions = useMemo(() => {
         const q = normalizeKana(query)
+        const inRange = (id: number) => {
+            const d = eventDates.get(id)
+            return !!d && (d.estimated ? d.date >= estimateFrom : d.date >= recentFrom)
+        }
         return (events ?? [])
-            .filter(e => q === "" || normalizeKana(e.name).includes(q) || normalizeEventName(e.name).includes(normalizeEventName(query)))
-            .sort((a, b) => (latestDate.get(b.id) ?? "").localeCompare(latestDate.get(a.id) ?? "") || a.name.localeCompare(b.name, "ja"))
-            .slice(0, 30)
-    }, [events, query, latestDate])
+            .filter(e => searching
+                ? normalizeKana(e.name).includes(q) || normalizeEventName(e.name).includes(normalizeEventName(query))
+                : showAll || inRange(e.id))
+            .sort((a, b) => (eventDates.get(b.id)?.date ?? "").localeCompare(eventDates.get(a.id)?.date ?? "") || a.name.localeCompare(b.name, "ja"))
+            .slice(0, showAll && !searching ? 300 : 50)
+    }, [events, query, searching, showAll, eventDates, recentFrom, estimateFrom])
+    // 選んだ大会の推定日（今年の開催日が未登録のとき）
+    const estimate = eventId != null && eventDates.get(eventId)?.estimated ? eventDates.get(eventId)! : null
     // 追加しようとしている大会名に似た既存の大会
     const similarEvents = useMemo(() => {
         const n = normalizeEventName(newEvent.name)
@@ -98,7 +148,14 @@ export function RacePicker({ value, onChange, allowCreate = true }: {
         return (events ?? []).filter(e => { const m = normalizeEventName(e.name); return m.includes(n) || n.includes(m) }).slice(0, 5)
     }, [events, newEvent.name])
 
-    const editionOptions = editions.filter(e => e.event_id === eventId).sort((a, b) => (b.held_on ?? "9999").localeCompare(a.held_on ?? "9999"))
+    // 開催日: 今日までの日付を近い順に先に、その後ろにこれから先の日付（近い順）、開催日未定は最後
+    const editionOptions = editions.filter(e => e.event_id === eventId).sort((a, b) => {
+        const rank = (d: string | null) => d == null ? 2 : d <= today ? 0 : 1
+        const ra = rank(a.held_on), rb = rank(b.held_on)
+        if (ra !== rb) return ra - rb
+        if (ra === 0) return b.held_on!.localeCompare(a.held_on!)
+        return (a.held_on ?? "").localeCompare(b.held_on ?? "")
+    })
     const raceOptions = races.filter(r => r.event_edition_id === editionId).sort((a, b) => b.distance_km - a.distance_km)
 
     const emit = (r: CatalogRace | null, ed = edition, ev = event) => {
@@ -175,13 +232,31 @@ export function RacePicker({ value, onChange, allowCreate = true }: {
                 ) : (
                     <>
                         <input value={query} onChange={e => setQuery(e.target.value)} placeholder="大会名で検索（例: 東京）" className={`${input} w-72 max-w-full`} />
-                        <div className="flex flex-wrap gap-1 max-h-40 overflow-y-auto">
+                        <div className="flex items-center gap-3 text-xs text-gray-500">
+                            <span>{searching ? "すべての大会から検索しています" : showAll ? "すべての大会（日付の新しい順）" : "最近開催された大会と、今年の開催日がまだ登録されていない毎年の大会（オレンジは前回の開催日。日付の新しい順）"}</span>
+                            {!searching && (
+                                <button type="button" onClick={() => setShowAll(v => !v)} className="text-blue-600 hover:underline">
+                                    {showAll ? "最近の大会だけにする" : "すべての大会を表示"}
+                                </button>
+                            )}
+                        </div>
+                        <div className="flex flex-wrap gap-1 max-h-48 overflow-y-auto">
                             {eventOptions.map(e => (
                                 <button key={e.id} type="button" onClick={() => chooseEvent(e.id)} className={chip(false)}>
-                                    {e.name}{e.prefecture && <span className="ml-1 text-xs text-gray-500">{e.prefecture}</span>}
+                                    {e.name}
+                                    {eventDates.has(e.id) && (() => {
+                                        // 推定の候補は、推定日ではなく前回の実際の開催日を「（昨年）」付きで出す
+                                        const d = eventDates.get(e.id)!
+                                        return d.estimated
+                                            ? <span className="ml-1 text-xs text-orange-600">{formatDate(d.from!)}（{yearsAgoLabel(d.from!)}）</span>
+                                            : <span className="ml-1 text-xs text-gray-500">{formatDate(d.date)}</span>
+                                    })()}
+                                    {e.prefecture && <span className="ml-1 text-xs text-gray-500">{e.prefecture}</span>}
                                 </button>
                             ))}
-                            {eventOptions.length === 0 && <span className="text-gray-500">該当する大会がありません</span>}
+                            {eventOptions.length === 0 && (
+                                <span className="text-gray-500">{searching ? "該当する大会がありません" : "最近の大会はありません。大会名で検索してください"}</span>
+                            )}
                         </div>
                         {allowCreate && creating !== "event" && (
                             <button type="button" onClick={() => { setCreating("event"); setNewEvent(v => ({ ...v, name: query })) }} className={`${addLink} self-start`}>
@@ -232,6 +307,15 @@ export function RacePicker({ value, onChange, allowCreate = true }: {
                         ))}
                         {editionOptions.length === 0 && <span className="text-gray-500">開催日がまだ登録されていません</span>}
                     </div>
+                    {allowCreate && creating !== "edition" && estimate && (
+                        <button
+                            type="button"
+                            onClick={() => { setNewEdition({ date: estimate.date, number: "" }); setCreating("edition") }}
+                            className="self-start px-2 py-1 rounded border border-orange-300 bg-orange-50 hover:bg-orange-100 text-sm"
+                        >
+                            ＋ 今年の開催日を追加（{yearsAgoLabel(estimate.from!)}は {formatDate(estimate.from!)}。同じ曜日の {formatDate(estimate.date)} を入れておきます）
+                        </button>
+                    )}
                     {allowCreate && creating !== "edition" && (
                         <button type="button" onClick={() => setCreating("edition")} className={`${addLink} self-start`}>＋ 開催日を追加</button>
                     )}
