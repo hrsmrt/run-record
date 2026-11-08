@@ -49,9 +49,10 @@ export async function updateSession(request: NextRequest) {
   const { data } = await supabase.auth.getClaims();
   const user = data?.claims;
 
-  // メンバー限定: /auth/* と robots.txt 以外はログイン必須
+  // メンバー限定: /auth/*・robots.txt・このサイトについて（/about）以外はログイン必須。
+  // /about は記録が載っているアカウントのない人も読めるよう公開する（メンバーの情報は載せない）
   const pathname = request.nextUrl.pathname;
-  const isPublic = pathname.startsWith("/auth") || pathname === "/robots.txt";
+  const isPublic = pathname.startsWith("/auth") || pathname === "/robots.txt" || pathname === "/about";
 
   if (!isPublic && !user) {
     const url = request.nextUrl.clone();

@@ -152,7 +152,7 @@ export default function ProfileEditPage() {
                     <input type="checkbox" checked={blockOthersEntry} onChange={e => setBlockOthersEntry(e.target.checked)} className="mt-1" />
                     <span>
                         他の人（大会の幹事）に自分の記録を登録させない
-                        <span className="block text-xs text-gray-500">オンにすると、幹事の一括登録で自分を選べなくなります。自分で登録した記録・管理者による登録には影響しません。</span>
+                        <span className="block text-xs text-gray-500">オンにすると、幹事の一括登録で自分を選べなくなります。自分で登録した記録・管理人による登録には影響しません。</span>
                     </span>
                 </label>
                 <button

@@ -202,7 +202,7 @@ export function EditRecordsClient() {
       )}
       {isAdmin && selfId && targetUserId && (
         <div className="mb-4 flex items-center gap-2">
-          <span className="text-sm font-semibold">編集するメンバー（管理者）</span>
+          <span className="text-sm font-semibold">編集するメンバー（管理人）</span>
           <MemberSelect selfId={selfId} value={targetUserId} onChange={setTargetUserId} className="px-2 py-1 border rounded" />
         </div>
       )}

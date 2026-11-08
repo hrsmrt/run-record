@@ -173,7 +173,7 @@ function RaceRouteRow({ race, route, onChanged }: {
                         <button onClick={() => { setUploading(false); setGpx({ hasFile: false, route: null, error: "" }) }} className="text-xs text-gray-600 hover:underline">やめる</button>
                     </div>
                     <p className="text-xs text-gray-500">
-                        登録した人の名前が表示されます。登録はこの種目に記録がある人、差し替え・削除は登録した本人と管理者ができます。
+                        登録した人の名前が表示されます。登録はこの種目に記録がある人、差し替え・削除は登録した本人と管理人ができます。
                     </p>
                 </div>
             )}

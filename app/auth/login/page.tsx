@@ -1,5 +1,6 @@
 import { LoginForm } from "@/components/login-form";
 import { ViewerLoginForm } from "@/components/viewer-login-form";
+import Link from "next/link";
 
 export default function Page() {
   return (
@@ -8,6 +9,7 @@ export default function Page() {
         <div className="text-center">
           <h1 className="text-2xl font-bold">Runner&apos;s Record</h1>
           <p className="text-sm text-gray-500">ホノマラOBOG向け記録共有サイト（非公式）</p>
+          <Link href="/about" className="text-xs text-blue-600 hover:underline">このサイトについて</Link>
         </div>
         <ViewerLoginForm />
         <div>

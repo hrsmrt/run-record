@@ -361,7 +361,7 @@ export function RacePicker({ value, onChange, allowCreate = true }: {
             {message && <p className="text-red-600">{message}</p>}
             {allowCreate && (
                 <p className="text-xs text-gray-500">
-                    大会・開催日・種目はメンバーなら誰でも追加できます（直すのは追加した人と管理者）。重複に気づいたら管理者がまとめます。
+                    大会・開催日・種目はメンバーなら誰でも追加できます（直すのは追加した人と管理人）。重複に気づいたら管理人がまとめます。
                 </p>
             )}
         </div>

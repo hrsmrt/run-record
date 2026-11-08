@@ -136,7 +136,7 @@ export default function MfaPage() {
                     </CardContent>
                 </Card>
                 <p className="mt-4 text-xs text-gray-500">
-                    ※ 2段階認証は管理者機能（大会情報の編集、他のメンバーの記録の登録・編集）に必要です。
+                    ※ 2段階認証は管理人機能（大会情報の編集、他のメンバーの記録の登録・編集）に必要です。
                     認証アプリを紛失した場合は、Supabase ダッシュボードで登録を削除してから登録し直してください。
                 </p>
             </div>

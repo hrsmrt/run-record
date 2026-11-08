@@ -125,7 +125,7 @@ export default function AddRecordForm() {
           )}
           {isAdmin && selfId && targetUserId && (
             <div className="flex items-center">
-              <span className="mr-2 w-32 text-right whitespace-nowrap">登録先（管理者）</span>
+              <span className="mr-2 w-32 text-right whitespace-nowrap">登録先（管理人）</span>
               <MemberSelect
                 selfId={selfId}
                 value={targetUserId}

@@ -4,6 +4,8 @@ import { ThemeProvider } from "next-themes";
 import "./globals.css";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { Header } from "@/components/header";
+import Link from "next/link";
+import { ObfuscatedEmail } from "@/components/ObfuscatedEmail";
 
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
@@ -22,16 +24,6 @@ const geistSans = Geist({
   display: "swap",
   subsets: ["latin"],
 });
-
-export function ObfuscatedEmail() {
-  const user = "hiro979mrta";
-  const domain = "gmail";
-  const tld = "com";
-
-  const email = `${user}@${domain}.${tld}`;
-
-  return <a href={`mailto:${email}`}>{email}</a>;
-}
 
 export default function RootLayout({
   children,
@@ -52,10 +44,11 @@ export default function RootLayout({
         </ThemeProvider>
         <footer className="w-full flex flex-col md:flex-row items-center justify-center text-center text-xs py-16 gap-2 md:gap-8 border-t mx-auto">
           <div className="space-y-2">
-          <p>ホノマラOBOG のマラソン等の大会結果を記録・共有する、メンバー限定のサイト（非公式）です。管理者が知り得た範囲で掲載しています。</p>
+          <p>ホノマラOBOG のマラソン等の大会結果を記録・共有する、メンバー限定のサイト（非公式）です。管理人（村田）が知り得た範囲で掲載しています。</p>
           <p>大会情報は確認済みのものを掲載していますが、誤りがある可能性もあるため、公式情報もご確認ください。誤りや掲載してほしい大会があればご連絡ください。</p>
-          <p>記録は本人・幹事が大会の公式結果をもとに入力しています。</p>
-          <p>お問い合わせは村田(メール: <ObfuscatedEmail />)までお願いします。</p>
+          <p>記録は本人・幹事・管理人（村田）が大会の公式結果をもとに入力しています。</p>
+          <p>お問い合わせは管理人（村田、メール: <ObfuscatedEmail />）までお願いします。</p>
+          <p><Link href="/about" className="underline">このサイトについて（掲載している情報・掲載をやめたいとき）</Link></p>
           <p>
             Powered by{" "}
             <a

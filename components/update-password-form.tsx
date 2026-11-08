@@ -58,7 +58,7 @@ export function UpdatePasswordForm({
           <CardTitle className="text-2xl">パスワードの変更</CardTitle>
           <CardDescription>
             {first
-              ? "管理者が発行した初期パスワードでログインしています。新しいパスワードを設定してください"
+              ? "管理人が発行した初期パスワードでログインしています。新しいパスワードを設定してください"
               : "新しいパスワードを入力してください"}
           </CardDescription>
         </CardHeader>

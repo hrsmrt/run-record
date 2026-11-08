@@ -37,7 +37,7 @@ export type NewAccount = {
 // 初期パスワードは戻り値で1回だけ返し、どこにも保存しない
 export async function createAccount(input: NewAccount): Promise<ActionResult<{ email: string; password: string; moved: number }>> {
     const supabase = await requireAdmin()
-    if (!supabase) return { ok: false, error: "2段階認証済みの管理者のみ実行できます" }
+    if (!supabase) return { ok: false, error: "2段階認証済みの管理人のみ実行できます" }
 
     const email = input.email.trim().toLowerCase()
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, error: "メールアドレスの形式が正しくありません" }
@@ -92,14 +92,14 @@ export async function createAccount(input: NewAccount): Promise<ActionResult<{ e
 
 // パスワードを再発行する（次のログインで変更を求める）。管理者・閲覧用アカウントは対象外
 export async function resetPassword(userId: string): Promise<ActionResult<{ email: string; password: string }>> {
-    if (!(await requireAdmin())) return { ok: false, error: "2段階認証済みの管理者のみ実行できます" }
+    if (!(await requireAdmin())) return { ok: false, error: "2段階認証済みの管理人のみ実行できます" }
     let admin
     try { admin = createAdminClient() } catch (e) { return { ok: false, error: errorMessage(e) } }
 
     const { data, error } = await admin.auth.admin.getUserById(userId)
     if (error || !data.user) return { ok: false, error: "アカウントが見つかりません" }
     const role = data.user.app_metadata?.role
-    if (role === "admin" || role === "viewer") return { ok: false, error: "管理者・閲覧用アカウントのパスワードはここでは再発行できません" }
+    if (role === "admin" || role === "viewer") return { ok: false, error: "管理人・閲覧用アカウントのパスワードはここでは再発行できません" }
 
     const password = generatePassword()
     const { error: updateError } = await admin.auth.admin.updateUserById(userId, {

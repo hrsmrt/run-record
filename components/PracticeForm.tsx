@@ -353,7 +353,7 @@ export function PracticeForm({ practiceId }: { practiceId?: number }) {
             </div>
             {message && <p className={`mt-2 text-sm ${message.isError ? "text-red-600" : "text-green-700"}`}>{message.text}</p>}
             <p className="mt-4 text-xs text-gray-500">
-                ※ 練習録は作った人と管理者が編集できます。コメントは参加メンバーが練習録のページから書きます。
+                ※ 練習録は作った人と管理人が編集できます。コメントは参加メンバーが練習録のページから書きます。
             </p>
         </div>
     )
