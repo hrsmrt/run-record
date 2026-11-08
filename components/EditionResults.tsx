@@ -23,6 +23,8 @@ export type EventResult = {
     division_rank: number | null
     division_total: number | null
     enrollment_year: number | null
+    // 本人以外（幹事・管理者）が登録した記録は、登録した人の名前
+    entered_by_name: string | null
 }
 
 type RaceInfo = { id: number; name: string; distance_km: number }
@@ -112,7 +114,7 @@ export function EditionResults({ races, results, splits }: {
                                     <Fragment key={r.id}>
                                         <tr>
                                             <td className="px-1 md:px-3 py-0">{raceById.get(r.race_id)?.name ?? ""}</td>
-                                            <td className={`px-1 md:px-3 py-0 ${r.gender === "female" ? "text-red-600" : ""}`}>{r.name}<EnrollmentTag year={r.enrollment_year} /></td>
+                                            <td className={`px-1 md:px-3 py-0 ${r.gender === "female" ? "text-red-600" : ""}`}>{r.name}<EnrollmentTag year={r.enrollment_year} />{r.entered_by_name && <span className="ml-1 text-[0.75em] text-gray-400" title="本人以外が登録した記録">登録: {r.entered_by_name}</span>}</td>
                                             <td className="px-1 md:px-3 py-0 text-right">{formatTime(r.time_ms)}</td>
                                             <td className="px-1 md:px-3 py-0 text-right">{r.clever_index ?? ""}</td>
                                             {hasRank && (

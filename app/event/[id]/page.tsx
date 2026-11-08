@@ -11,6 +11,7 @@ import { SplitPoint } from "@/lib/splits"
 import { EditionReports, RaceReport } from "@/components/EditionReports"
 import { VIEWER_ROLE } from "@/lib/viewer"
 import { RACE_ROUTE_COLUMNS, RaceRoutes, type RaceRouteInfo } from "@/components/RaceRoutes"
+import { EditionOrganizers, type EditionOrganizer } from "@/components/EditionOrganizers"
 
 type Race = {
     id: number
@@ -87,6 +88,11 @@ export default function EventDetailPage() {
     const [routes, setRoutes] = useState<Map<number, RaceRouteInfo>>(new Map())
     const [routeEditable, setRouteEditable] = useState<Set<number>>(new Set())
     const [routeReload, setRouteReload] = useState(0)
+    // 開催回ごとの幹事
+    const [organizers, setOrganizers] = useState<EditionOrganizer[]>([])
+    const [organizerReload, setOrganizerReload] = useState(0)
+    // メンバーが追加した大会・開催回の、追加した人の名前（"event:ID" / "edition:ID" → 名前）
+    const [creators, setCreators] = useState<Map<string, string>>(new Map())
 
     useEffect(() => {
         const fetchEvent = async () => {
@@ -131,7 +137,7 @@ export default function EventDetailPage() {
             // この大会に紐付いた記録（公開ビュー）と、そのラップ
             const { data: resData, error: resError } = await supabase
                 .from('public_results')
-                .select('id, name, gender, time_ms, clever_index, race_id, overall_rank, overall_total, gender_rank, gender_total, division, division_rank, division_total, enrollment_year')
+                .select('id, name, gender, time_ms, clever_index, race_id, overall_rank, overall_total, gender_rank, gender_total, division, division_rank, division_total, enrollment_year, entered_by_name')
                 .eq('event_id', detail.id)
             if (resError) {
                 console.error('Error fetching results:', resError)
@@ -177,6 +183,22 @@ export default function EventDetailPage() {
         fetchRoutes()
     }, [event, canWrite, routeReload])
 
+    useEffect(() => {
+        if (!event) return
+        createClient().from("public_catalog_creators").select("kind, id, name")
+            .or(`and(kind.eq.event,id.eq.${event.id}),and(kind.eq.edition,id.in.(${event.event_editions.map(ed => ed.id).join(",") || "0"}))`)
+            .then(({ data }) => setCreators(new Map((data ?? []).map(c => [`${c.kind}:${c.id}`, c.name as string]))))
+    }, [event])
+
+    // 幹事は「幹事になる・やめる」のたびに読み直す
+    useEffect(() => {
+        if (!event) return
+        const editionIds = event.event_editions.map(ed => ed.id)
+        if (editionIds.length === 0) return
+        createClient().from("public_edition_organizers").select("*").in("event_edition_id", editionIds)
+            .then(({ data }) => setOrganizers((data ?? []) as EditionOrganizer[]))
+    }, [event, organizerReload])
+
     // データ読み込み後に描画されるため、URL の #edition-○ への移動を読み込み完了後に行う
     useEffect(() => {
         if (status !== "ok" || !window.location.hash) return
@@ -198,7 +220,10 @@ export default function EventDetailPage() {
 
                 {event && (
                     <>
-                        <h1 className="text-lg font-bold mb-2">{event.name}</h1>
+                        <h1 className="text-lg font-bold mb-2">
+                            {event.name}
+                            {creators.has(`event:${event.id}`) && <span className="ml-2 text-xs font-normal text-gray-500">追加: {creators.get(`event:${event.id}`)}</span>}
+                        </h1>
                         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm mb-6">
                             <dt className="text-gray-500">県</dt>
                             <dd>{event.prefecture ?? "未設定"}</dd>
@@ -230,6 +255,7 @@ export default function EventDetailPage() {
                                     <h3 className="font-bold text-sm mb-1">
                                         {ed.held_on ? formatDate(ed.held_on) : "開催日未定"}
                                         {ed.edition_number != null && ` 第${ed.edition_number}回`}
+                                        {creators.has(`edition:${ed.id}`) && <span className="ml-2 text-xs font-normal text-gray-500">追加: {creators.get(`edition:${ed.id}`)}</span>}
                                     </h3>
                                     {ed.races.length === 0 ? (
                                         <p className="text-sm text-gray-500">種目はまだ登録されていません。</p>
@@ -277,6 +303,12 @@ export default function EventDetailPage() {
                                             </div>
                                         </div>
                                     )}
+                                    <EditionOrganizers
+                                        editionId={ed.id}
+                                        organizers={organizers.filter(o => o.event_edition_id === ed.id)}
+                                        canJoin={canWrite}
+                                        onChanged={() => setOrganizerReload(n => n + 1)}
+                                    />
                                     <RaceRoutes
                                         races={ed.races}
                                         routes={routes}

@@ -11,6 +11,8 @@ type Profile = {
   gender: string
   birth_year: number
   enrollment_year: number | null
+  block_others_entry: boolean
+  name_kana: string | null
 }
 
 export default function ProfilePage() {
@@ -28,12 +30,12 @@ export default function ProfilePage() {
 
       const { data, error } = await supabase
         .from("profiles")
-        .select("name, display_name, gender, birth_year, enrollment_year")
+        .select("name, display_name, gender, birth_year, enrollment_year, block_others_entry, name_kana")
         .eq("user_id", user.id)
         .maybeSingle()
 
       if (error) console.error(error)
-      setProfile(data ?? { name: "", display_name: "", gender: "", birth_year: 0, enrollment_year: null })
+      setProfile(data ?? { name: "", display_name: "", gender: "", birth_year: 0, enrollment_year: null, block_others_entry: false, name_kana: null })
       setLoading(false)
     }
     fetchProfile()
@@ -45,6 +47,7 @@ export default function ProfilePage() {
     <div className="max-w-xl mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">プロフィール</h1>
       <div className="mb-2"><strong>名前:</strong> {profile?.name || ""}</div>
+      <div className="mb-2"><strong>ふりがな:</strong> {profile?.name_kana || "未登録"}</div>
       <div className="mb-2"><strong>表示名:</strong> {profile?.display_name || ""}</div>
       <div className="mb-2"><strong>性別:</strong> {profile?.gender || ""}</div>
       <div className="mb-2"><strong>生年:</strong> {profile?.birth_year || ""}（メンバーには公開されません）</div>
@@ -52,6 +55,7 @@ export default function ProfilePage() {
         <strong>入学年度:</strong>{" "}
         {profile?.enrollment_year != null ? `${profile.enrollment_year}年度（${yearsSinceEnrollment(profile.enrollment_year)}年目）` : "未登録"}
       </div>
+      <div className="mb-2"><strong>幹事による記録の登録:</strong> {profile?.block_others_entry ? "させない" : "許可する"}</div>
 
       <div className="mt-4 flex flex-col gap-2">
         <Link

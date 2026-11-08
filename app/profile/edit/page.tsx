@@ -16,6 +16,9 @@ export default function ProfileEditPage() {
     const router = useRouter()
     const [profile, setProfile] = useState<Profile>({ name: "", display_name: "", gender: "", birth_year: 2000 })
     const [enrollmentStr, setEnrollmentStr] = useState("")
+    // 「他の人（幹事）に自分の記録を登録させない」
+    const [blockOthersEntry, setBlockOthersEntry] = useState(false)
+    const [nameKana, setNameKana] = useState("")
     const [loading, setLoading] = useState(true)
     // ログイン後にプロフィールがなくて案内されてきたとき（?welcome=1）
     const [welcome, setWelcome] = useState(false)
@@ -29,14 +32,16 @@ export default function ProfileEditPage() {
 
             const { data, error } = await supabase
                 .from("profiles")
-                .select("name, display_name, gender, birth_year, enrollment_year")
+                .select("name, display_name, gender, birth_year, enrollment_year, block_others_entry, name_kana")
                 .eq("user_id", user.id)
                 .maybeSingle()
 
             if (error) {
                 console.error(error)
             } else if (data) {
-                const { enrollment_year, ...rest } = data
+                const { enrollment_year, block_others_entry, name_kana, ...rest } = data
+                setBlockOthersEntry(block_others_entry)
+                setNameKana(name_kana ?? "")
                 setProfile(rest) // ←ここでフォームの初期値として設定
                 setEnrollmentStr(enrollmentToStr(enrollment_year))
             }
@@ -66,6 +71,8 @@ export default function ProfileEditPage() {
                 gender: profile.gender ?? "",
                 birth_year: profile.birth_year ?? null,
                 enrollment_year: enrollmentYear,
+                block_others_entry: blockOthersEntry,
+                name_kana: nameKana.trim() || null,
             },
                 { onConflict: "user_id" }  // user_id が被ったら update
             )
@@ -97,6 +104,14 @@ export default function ProfileEditPage() {
                         type="text"
                         value={profile.name ?? ""}
                         onChange={(e) => setProfile({ ...profile, name: e.target.value })}
+                        className="border p-2 w-full"
+                    />
+                    ふりがな:
+                    <input
+                        type="text"
+                        value={nameKana}
+                        onChange={(e) => setNameKana(e.target.value)}
+                        placeholder="例: むらた ひろし（一覧の並び順・検索に使います）"
                         className="border p-2 w-full"
                     />
                     表示名:
@@ -132,6 +147,13 @@ export default function ProfileEditPage() {
                         placeholder="例: 2017"
                         className="border p-2 w-full"
                     />
+                </label>
+                <label className="flex items-start gap-2 text-sm">
+                    <input type="checkbox" checked={blockOthersEntry} onChange={e => setBlockOthersEntry(e.target.checked)} className="mt-1" />
+                    <span>
+                        他の人（大会の幹事）に自分の記録を登録させない
+                        <span className="block text-xs text-gray-500">オンにすると、幹事の一括登録で自分を選べなくなります。自分で登録した記録・管理者による登録には影響しません。</span>
+                    </span>
                 </label>
                 <button
                     type="submit"

@@ -16,6 +16,7 @@ export default function ProfileCreatePage() {
   const router = useRouter()
   const [profile, setProfile] = useState<Profile>({ name: "", display_name: "", gender: "", birth_year: 2000 })
   const [enrollmentStr, setEnrollmentStr] = useState("")
+  const [nameKana, setNameKana] = useState("")
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -44,6 +45,7 @@ export default function ProfileCreatePage() {
         gender: profile.gender ?? "",
         birth_year: profile.birth_year ?? null,
         enrollment_year: enrollmentYear,
+        name_kana: nameKana.trim() || null,
       })
 
     setLoading(false)
@@ -67,6 +69,16 @@ export default function ProfileCreatePage() {
             type="text"
             value={profile.name}
             onChange={(e) => setProfile({ ...profile, name: e.target.value })}
+            className="border p-2 w-full"
+          />
+        </label>
+        <label>
+          ふりがな:
+          <input
+            type="text"
+            value={nameKana}
+            onChange={(e) => setNameKana(e.target.value)}
+            placeholder="例: むらた ひろし"
             className="border p-2 w-full"
           />
         </label>

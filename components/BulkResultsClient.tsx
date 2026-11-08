@@ -6,16 +6,27 @@ import { createClient } from "@/lib/supabase/client"
 import { formatTime } from "@/lib/utils"
 import { formatDistance, parseElapsed } from "@/lib/splits"
 import { useUnsavedWarning } from "@/lib/use-unsaved-warning"
-import { RaceDatalist, RaceInput, RaceOption, useRaceOptions } from "@/components/RaceInput"
+import { RaceOption, useRaceOptions } from "@/components/RaceInput"
+import { RacePicker } from "@/components/RacePicker"
+import { MemberCombobox } from "@/components/MemberCombobox"
 import { DivisionDatalist } from "@/components/RaceDivisionsEditor"
 import { formatRank, parseCount } from "@/lib/ranks"
 import { parseEnrollmentYear } from "@/lib/enrollment"
 
-type Member = { user_id: string; name: string | null; pending_auth: boolean }
+// allows_entry: 本人が「他の人に自分の記録を登録させない」にしていなければ true（幹事はそういう人を登録できない）
+type Member = {
+    user_id: string
+    name: string | null
+    name_kana: string | null
+    enrollment_year: number | null
+    pending_auth: boolean
+    allows_entry: boolean
+}
 
 type ExistingResult = {
     id: number
     user_id: string
+    created_by: string | null
     time_ms: number
     clever_index: number | null
     overall_rank: number | null
@@ -63,9 +74,15 @@ const emptyRow = (key: number): EntryRow => ({
 const isFilled = (r: EntryRow) =>
     !!(r.userId || r.timeStr || r.cleverStr || r.overallRankStr || r.genderRankStr || r.division || r.divisionRankStr || r.comment)
 
-// 管理者が1つのレースについて複数人の記録をまとめて登録する
-export function BulkResultsClient() {
-    const { options: raceOptions, error: raceError } = useRaceOptions()
+// 1つのレースについて複数人の記録をまとめて登録する。
+// 管理者（editionId なし）は全レース、幹事（editionId あり）は幹事をしている開催回の種目だけ
+export function BulkResultsClient({ editionId }: { editionId?: number }) {
+    const organizerMode = editionId != null
+    // 幹事はその開催回の種目から選ぶ。管理者は大会 → 開催日 → 種目の順に選ぶ（RacePicker）
+    const { options: allRaceOptions, error: raceError } = useRaceOptions()
+    const raceOptions = allRaceOptions && organizerMode ? allRaceOptions.filter(o => o.editionId === editionId) : allRaceOptions
+    // 自分の ID（幹事は自分が登録した記録だけ削除できる）
+    const [myId, setMyId] = useState("")
     const [members, setMembers] = useState<Member[]>([])
     const [race, setRace] = useState<RaceOption | null>(null)
     const [raceType, setRaceType] = useState("road")
@@ -74,11 +91,10 @@ export function BulkResultsClient() {
     const [nextKey, setNextKey] = useState(1)
     const [saving, setSaving] = useState(false)
     const [message, setMessage] = useState<{ text: string; isError: boolean } | null>(null)
-    // レース選択欄を空に戻すためのキー
-    const [raceInputKey, setRaceInputKey] = useState(0)
     // メンバー一覧にいない人（アカウントなし）の追加
     const [newName, setNewName] = useState("")
     const [newGender, setNewGender] = useState("")
+    const [newKana, setNewKana] = useState("")
     const [newEnrollment, setNewEnrollment] = useState("")
     const [adding, setAdding] = useState(false)
 
@@ -87,17 +103,27 @@ export function BulkResultsClient() {
 
     useEffect(() => {
         const fetch = async () => {
-            const { data, error } = await createClient().from("admin_members").select("user_id, name, pending_auth")
+            const supabase = createClient()
+            const { data: { user } } = await supabase.auth.getUser()
+            setMyId(user?.id ?? "")
+            // 管理者・幹事とも entry_member_list（入学年度・ふりがな付き）。
+            // 「登録させない」設定は幹事にだけ効く（管理者は全員を登録できる）
+            const { data, error } = await supabase.rpc("entry_member_list")
             if (error) { setMessage({ text: `メンバー一覧の読み込みに失敗しました: ${error.message}`, isError: true }); return }
-            setMembers(((data ?? []) as Member[]).sort((a, b) => (a.name ?? "").localeCompare(b.name ?? "")))
+            const list: Member[] = ((data ?? []) as { user_id: string; name: string | null; is_pending: boolean; allows_entry: boolean; enrollment_year: number | null; name_kana: string | null }[])
+                .map(m => ({
+                    user_id: m.user_id, name: m.name, name_kana: m.name_kana, enrollment_year: m.enrollment_year,
+                    pending_auth: m.is_pending, allows_entry: organizerMode ? m.allows_entry : true,
+                }))
+            setMembers(list)
         }
         fetch()
-    }, [])
+    }, [organizerMode])
 
     const loadExisting = async (raceId: number) => {
         const { data, error } = await createClient()
             .from("results")
-            .select("id, user_id, time_ms, clever_index, overall_rank, division, division_rank, comment")
+            .select("id, user_id, created_by, time_ms, clever_index, overall_rank, division, division_rank, comment")
             .eq("race_id", raceId)
             .order("time_ms")
         if (error) { setMessage({ text: `登録済みの記録の読み込みに失敗しました: ${error.message}`, isError: true }); return }
@@ -123,19 +149,16 @@ export function BulkResultsClient() {
         if (enrollmentYear === undefined) { setMessage({ text: "入学年度は西暦4桁（例: 2017）で入力してください", isError: true }); return }
         if (members.some(m => m.name === name) && !confirm(`「${name}」は一覧にすでにいます。別人として追加しますか？`)) return
         setAdding(true)
-        // ID は DB の既定値で作らせる（任意の ID を指定して既存メンバーと重複させないため）
+        // 管理者・幹事とも、メンバー用の関数で追加する（ID は DB の既定値で作られる）
         const { data, error } = await createClient()
-            .from("profiles_pending")
-            // name（名前）と display_name（表示名。公開されるのはこちら）の両方に入れる
-            .insert({ name, display_name: name, gender: newGender, enrollment_year: enrollmentYear, pending_auth: true })
-            .select("id")
-            .single()
+            .rpc("add_pending_member", { p_name: name, p_gender: newGender, p_enrollment_year: enrollmentYear, p_name_kana: newKana.trim() || null })
         setAdding(false)
         if (error) { setMessage({ text: `追加に失敗しました: ${error.message}`, isError: true }); return }
-        const id: string = data.id
-        setMembers(prev => [...prev, { user_id: id, name, pending_auth: true }].sort((a, b) => (a.name ?? "").localeCompare(b.name ?? "")))
+        const id = data as string
+        setMembers(prev => [...prev, { user_id: id, name, name_kana: newKana.trim() || null, enrollment_year: enrollmentYear, pending_auth: true, allows_entry: true }])
         setNewName("")
         setNewGender("")
+        setNewKana("")
         setNewEnrollment("")
         setMessage({ text: `「${name}」を追加しました`, isError: false })
         const blank = rows.find(r => !r.userId)
@@ -205,12 +228,26 @@ export function BulkResultsClient() {
         if (errors.length > 0) { setMessage({ text: errors.join(" / "), isError: true }); return }
 
         setSaving(true)
+        // 同じ人・同じ種目の記録は1件まで（DB の一意の制約）。違反したときは分かりやすく伝える
         const { error } = await createClient().from("results").insert(inserts)
         setSaving(false)
-        if (error) { setMessage({ text: `保存に失敗しました: ${error.message}`, isError: true }); return }
+        if (error) {
+            const text = error.code === "23505" ? "すでに記録が登録されている人が含まれています（「登録済み」の人は選ばないでください）" : error.message
+            setMessage({ text: `保存に失敗しました: ${text}`, isError: true })
+            return
+        }
         setMessage({ text: `${inserts.length}件の記録を登録しました`, isError: false })
         setRows([emptyRow(nextKey)])
         setNextKey(k => k + 1)
+        loadExisting(race.id)
+    }
+
+    // 幹事は自分が登録した記録だけ削除できる（DB でも同じ条件）。管理者は記録を編集のページから
+    const handleDeleteExisting = async (e: ExistingResult) => {
+        if (!race || !confirm(`${memberName(e.user_id)}の記録を削除しますか？`)) return
+        const { error } = await createClient().from("results").delete().eq("id", e.id)
+        if (error) { setMessage({ text: `削除に失敗しました: ${error.message}`, isError: true }); return }
+        setMessage({ text: "削除しました", isError: false })
         loadExisting(race.id)
     }
 
@@ -218,7 +255,6 @@ export function BulkResultsClient() {
         if (dirty && !confirm("入力中の記録は破棄されます。レースを選び直しますか？")) return
         setRows([emptyRow(nextKey)])
         setNextKey(k => k + 1)
-        setRaceInputKey(k => k + 1)
         selectRace(null)
     }
 
@@ -228,22 +264,27 @@ export function BulkResultsClient() {
             <section className="mb-6">
                 <h2 className="font-semibold mb-1">1. レースを選ぶ</h2>
                 {raceError && <p className="text-sm text-red-600">大会情報の読み込みに失敗しました: {raceError}</p>}
-                {!raceOptions ? <p className="text-sm">読み込み中...</p> : (
+                {race ? (
                     <div className="flex flex-wrap items-center gap-2">
-                        <RaceInput
-                            key={raceInputKey}
-                            listId="bulk-race-options"
-                            options={raceOptions}
-                            value={race?.id ?? null}
-                            onChange={selectRace}
-                            className="w-96 max-w-full px-2 py-1 border rounded bg-white"
-                        />
-                        <RaceDatalist id="bulk-race-options" options={raceOptions} />
-                        {race && <button onClick={changeRace} className="text-sm text-blue-600 hover:underline">選び直す</button>}
+                        <span className="font-bold">{race.label}</span>
+                        <button onClick={changeRace} className="text-sm text-blue-600 hover:underline">選び直す</button>
                     </div>
+                ) : organizerMode ? (
+                    !raceOptions ? <p className="text-sm">読み込み中...</p> : (
+                        <div className="flex flex-wrap gap-1">
+                            {raceOptions.map(o => (
+                                <button key={o.id} onClick={() => selectRace(o)} className="px-2 py-1 rounded border bg-white hover:bg-gray-50 text-sm">{o.label}</button>
+                            ))}
+                            {raceOptions.length === 0 && <span className="text-sm text-gray-500">この開催回には種目がまだありません</span>}
+                        </div>
+                    )
+                ) : (
+                    <RacePicker value={null} onChange={selectRace} />
                 )}
                 <p className="mt-1 text-xs text-gray-500">
-                    一覧にないレースは、先に「大会編集」「開催日編集」「種目編集」で登録してください
+                    {organizerMode
+                        ? "幹事をしている開催回の種目だけが選べます。種目がないときは大会詳細やこのページの最初から追加できます"
+                        : "見つからない大会・開催日・種目は、その場で追加できます（入力の詳細は大会編集などで直せます）"}
                 </p>
                 {race && (
                     <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
@@ -278,13 +319,25 @@ export function BulkResultsClient() {
                                             <td className="px-2 py-0.5 text-right">{formatRank(e.overall_rank)}</td>
                                             <td className="px-2 py-0.5">{e.division ?? ""} {formatRank(e.division_rank)}</td>
                                             <td className="px-2 py-0.5 text-gray-600">{e.comment ?? ""}</td>
+                                            <td className="px-2 py-0.5 text-xs text-gray-500">
+                                                {e.created_by === e.user_id ? "本人が登録" : e.created_by === myId ? "自分が登録" : ""}
+                                            </td>
+                                            {organizerMode && (
+                                                <td className="px-2 py-0.5">
+                                                    {e.created_by === myId && e.created_by !== e.user_id && (
+                                                        <button onClick={() => handleDeleteExisting(e)} className="text-xs text-red-600 hover:underline">削除</button>
+                                                    )}
+                                                </td>
+                                            )}
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
                         )}
                         <p className="mt-1 text-xs text-gray-500">
-                            登録済みの記録の修正・削除・ラップ入力は <Link href="/records/edit" className="text-blue-600 hover:underline">記録を編集</Link> から
+                            {organizerMode
+                                ? "幹事は自分が登録した記録を削除できます（直すときは削除して登録し直してください）。本人が登録した記録は変えられません。"
+                                : <>登録済みの記録の修正・削除・ラップ入力は <Link href="/records/edit" className="text-blue-600 hover:underline">記録を編集</Link> から</>}
                         </p>
                     </section>
 
@@ -310,20 +363,18 @@ export function BulkResultsClient() {
                                         return (
                                             <tr key={r.key} className="border-b">
                                                 <td className="px-2 py-1">
-                                                    <select
+                                                    <MemberCombobox
+                                                        members={members.map(m => ({
+                                                            ...m,
+                                                            note: m.pending_auth ? "（アカウントなし）" : undefined,
+                                                            disabledReason: registeredIds.has(m.user_id) ? "登録済み"
+                                                                : !m.allows_entry ? "本人の設定により登録できません"
+                                                                : rows.some(x => x.key !== r.key && x.userId === m.user_id) ? "ほかの行で選択中" : undefined,
+                                                        }))}
                                                         value={r.userId}
-                                                        onChange={e => updateRow(r.key, { userId: e.target.value })}
-                                                        className="w-48 border rounded px-1 py-0.5 bg-white"
-                                                    >
-                                                        <option value="">選んでください</option>
-                                                        {members.map(m => (
-                                                            <option key={m.user_id} value={m.user_id}>
-                                                                {m.name ?? "名前未設定"}
-                                                                {m.pending_auth ? "（アカウントなし）" : ""}
-                                                                {registeredIds.has(m.user_id) ? "（登録済み）" : ""}
-                                                            </option>
-                                                        ))}
-                                                    </select>
+                                                        onChange={id => updateRow(r.key, { userId: id })}
+                                                        className="w-56"
+                                                    />
                                                 </td>
                                                 <td className="px-2 py-1">
                                                     <input
@@ -375,6 +426,12 @@ export function BulkResultsClient() {
                                 placeholder="表示名"
                                 onChange={e => setNewName(e.target.value)}
                                 className="w-40 border rounded px-1 py-0.5"
+                            />
+                            <input
+                                value={newKana}
+                                placeholder="ふりがな"
+                                onChange={e => setNewKana(e.target.value)}
+                                className="w-32 border rounded px-1 py-0.5"
                             />
                             <select value={newGender} onChange={e => setNewGender(e.target.value)} className="border rounded px-1 py-0.5 bg-white">
                                 <option value="">性別</option>

@@ -6,6 +6,8 @@ const PAGES = [
     { href: "/event/edit-races", label: "種目編集" },
     { href: "/event/edit-results", label: "記録一括登録" },
     { href: "/event/edit-members", label: "メンバー編集" },
+    { href: "/event/edit-history", label: "記録の変更履歴" },
+    { href: "/event/edit-merge", label: "重複をまとめる" },
 ]
 
 export function EventAdminNav({ current }: { current: string }) {

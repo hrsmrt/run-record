@@ -109,6 +109,7 @@ export type DirectoryMember = {
     enrollment_year: number | null
     is_pending: boolean
     is_me: boolean
+    name_kana: string | null
 }
 
 export const practiceTitle = (p: { title: string | null }) => p.title || "練習"
@@ -123,8 +124,8 @@ export const parseKm = (str: string): number | null | undefined => {
     return Number.isFinite(n) && n > 0 && n < 10000 ? Math.round(n * 1000) / 1000 : undefined
 }
 
-// 参加メンバーの並び（主催者 → 入学年度の古い順 → 名前順）
+// 参加メンバーの並び（主催者 → 入学年度の新しい順 → 名前順。入学年度がない人は最後）
 export const compareParticipants = (a: PracticeParticipant, b: PracticeParticipant) =>
     Number(b.is_organizer) - Number(a.is_organizer)
-    || (a.enrollment_year ?? 9999) - (b.enrollment_year ?? 9999)
-    || (a.name ?? "").localeCompare(b.name ?? "")
+    || (b.enrollment_year ?? 0) - (a.enrollment_year ?? 0)
+    || (a.name ?? "").localeCompare(b.name ?? "", "ja")

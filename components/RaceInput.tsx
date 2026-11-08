@@ -10,13 +10,14 @@ export type RaceOption = {
     eventType: string
     heldOn: string | null
     distanceKm: number
+    editionId: number
 }
 
 type RaceRow = {
     id: number
     name: string
     distance_km: number
-    event_editions: { held_on: string | null; events: { name: string; type: string } }
+    event_editions: { id: number; held_on: string | null; events: { name: string; type: string } }
 }
 
 const formatDate = (d: string) => `${d.substring(0, 4)}/${d.substring(5, 7)}/${d.substring(8, 10)}`
@@ -31,7 +32,7 @@ export function useRaceOptions() {
             const supabase = createClient()
             const { data, error } = await supabase
                 .from("races")
-                .select("id, name, distance_km, event_editions(held_on, events(name, type))")
+                .select("id, name, distance_km, event_editions(id, held_on, events(name, type))")
             if (error) { setError(error.message); setOptions([]); return }
             const rows = data as unknown as RaceRow[]
             setOptions(rows
@@ -45,6 +46,7 @@ export function useRaceOptions() {
                         eventName,
                         heldOn,
                         distanceKm: Number(r.distance_km),
+                        editionId: r.event_editions.id,
                     }
                 })
                 .sort((a, b) => (b.heldOn ?? "").localeCompare(a.heldOn ?? "") || a.label.localeCompare(b.label)))

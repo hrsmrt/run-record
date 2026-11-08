@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client"
 import { useUnsavedWarning } from "@/lib/use-unsaved-warning"
 import { enrollmentToStr, parseEnrollmentYear, yearsSinceEnrollment } from "@/lib/enrollment"
 import { createAccount, resetPassword, type NewAccount } from "@/app/event/edit-members/actions"
+import { matchesMember } from "@/lib/members"
 
 type Member = {
     user_id: string
@@ -12,6 +13,7 @@ type Member = {
     display_name: string | null
     gender: string | null
     enrollment_year: number | null
+    name_kana: string | null
     // アカウントなし（profiles_pending）
     is_pending: boolean
     // アカウントはあるがプロフィールがない人は false
@@ -23,7 +25,7 @@ type Member = {
 // 作成・再発行した初期パスワード（画面にだけ表示し、閉じたら消える）
 type IssuedPassword = { email: string; password: string; note: string }
 
-const emptyAccount = (): NewAccount => ({ email: "", pendingId: null, displayName: "", name: "", gender: "", enrollmentYear: "" })
+const emptyAccount = (): NewAccount => ({ email: "", pendingId: null, displayName: "", name: "", nameKana: "", gender: "", enrollmentYear: "" })
 
 const label = (m: Member) => m.display_name || m.name || (m.has_profile ? "名前未設定" : "（プロフィール未登録）")
 
@@ -34,6 +36,8 @@ export function EditMembersClient() {
     const [members, setMembers] = useState<Member[] | null>(null)
     // 変更中の入学年度（user_id → 入力欄の文字列）
     const [edits, setEdits] = useState<Map<string, string>>(new Map())
+    // 変更中のふりがな（user_id → 入力欄の文字列）
+    const [kanaEdits, setKanaEdits] = useState<Map<string, string>>(new Map())
     const [query, setQuery] = useState("")
     const [onlyMissing, setOnlyMissing] = useState(false)
     const [saving, setSaving] = useState(false)
@@ -45,7 +49,8 @@ export function EditMembersClient() {
     // 紐付け先を選んでいる「アカウントなし」の人と、選んだ紐付け先のアカウント
     const [linking, setLinking] = useState<{ pendingId: string; userId: string } | null>(null)
 
-    useUnsavedWarning(edits.size > 0)
+    useUnsavedWarning(edits.size > 0 || kanaEdits.size > 0)
+    const changedCount = new Set([...edits.keys(), ...kanaEdits.keys()]).size
 
     const load = useCallback(async () => {
         const { data, error } = await createClient().rpc("admin_list_members")
@@ -58,11 +63,12 @@ export function EditMembersClient() {
     const pendings = useMemo(() => (members ?? []).filter(m => m.is_pending).sort((a, b) => label(a).localeCompare(label(b))), [members])
     const accounts = useMemo(() => (members ?? []).filter(m => !m.is_pending).sort((a, b) => label(a).localeCompare(label(b))), [members])
 
-    // 入学年度の新しい順（未登録は先頭）、同じ年度の中は名前順
+    // 入学年度の新しい順（未登録は先頭）、同じ年度の中はふりがな順。名前・ふりがな・メールで検索
     const shown = useMemo(() => (members ?? [])
-        .filter(m => !onlyMissing || m.enrollment_year == null)
-        .filter(m => query === "" || label(m).includes(query) || (m.name ?? "").includes(query) || (m.email ?? "").includes(query))
-        .sort((a, b) => (b.enrollment_year ?? 9999) - (a.enrollment_year ?? 9999) || label(a).localeCompare(label(b))),
+        .filter(m => !onlyMissing || m.enrollment_year == null || !m.name_kana)
+        .filter(m => query === "" || matchesMember({ ...m, name: label(m) }, query) || (m.name ?? "").includes(query) || (m.email ?? "").includes(query))
+        .sort((a, b) => (b.enrollment_year ?? 9999) - (a.enrollment_year ?? 9999)
+            || (a.name_kana || label(a)).localeCompare(b.name_kana || label(b), "ja")),
     [members, onlyMissing, query])
 
     const showIssued = (p: IssuedPassword) => { setIssued(p); setCopied(false) }
@@ -70,6 +76,13 @@ export function EditMembersClient() {
     const setEdit = (m: Member, value: string) => setEdits(prev => {
         const next = new Map(prev)
         if (value === enrollmentToStr(m.enrollment_year)) next.delete(m.user_id)
+        else next.set(m.user_id, value)
+        return next
+    })
+
+    const setKanaEdit = (m: Member, value: string) => setKanaEdits(prev => {
+        const next = new Map(prev)
+        if (value === (m.name_kana ?? "")) next.delete(m.user_id)
         else next.set(m.user_id, value)
         return next
     })
@@ -91,16 +104,29 @@ export function EditMembersClient() {
             if (error) failed.push(`${label(m)}（${error.message}）`)
             else saved.set(m.user_id, year ?? null)
         }
+        const savedKana = new Map<string, string>()
+        for (const m of members.filter(x => kanaEdits.has(x.user_id))) {
+            const kana = kanaEdits.get(m.user_id)!.trim()
+            const { error } = await supabase.rpc("admin_set_name_kana", { p_user_id: m.user_id, p_name_kana: kana })
+            if (error) failed.push(`${label(m)}（${error.message}）`)
+            else savedKana.set(m.user_id, kana)
+        }
         setSaving(false)
-        setMembers(prev => (prev ?? []).map(m => saved.has(m.user_id) ? { ...m, enrollment_year: saved.get(m.user_id)! } : m))
-        setEdits(prev => {
+        setMembers(prev => (prev ?? []).map(m => ({
+            ...m,
+            ...(saved.has(m.user_id) ? { enrollment_year: saved.get(m.user_id)! } : {}),
+            ...(savedKana.has(m.user_id) ? { name_kana: savedKana.get(m.user_id) || null } : {}),
+        })))
+        const drop = (ids: Map<string, unknown>) => (prev: Map<string, string>) => {
             const next = new Map(prev)
-            saved.forEach((_, id) => next.delete(id))
+            ids.forEach((_, id) => next.delete(id))
             return next
-        })
+        }
+        setEdits(drop(saved))
+        setKanaEdits(drop(savedKana))
         setMessage(failed.length > 0
             ? { text: `保存に失敗しました: ${failed.join(" / ")}`, isError: true }
-            : { text: `${saved.size}人の入学年度を保存しました`, isError: false })
+            : { text: `${new Set([...saved.keys(), ...savedKana.keys()]).size}人の変更を保存しました`, isError: false })
     }
 
     const pendingOf = (id: string | null) => pendings.find(p => p.user_id === id)
@@ -198,6 +224,12 @@ export function EditMembersClient() {
                                 placeholder="名前（空欄なら表示名）"
                                 className={`${inputClass} w-44`}
                             />
+                            <input
+                                value={account.nameKana}
+                                onChange={e => setAccount({ ...account, nameKana: e.target.value })}
+                                placeholder="ふりがな"
+                                className={`${inputClass} w-32`}
+                            />
                             <select value={account.gender} onChange={e => setAccount({ ...account, gender: e.target.value })} className={inputClass} aria-label="性別">
                                 <option value="">性別</option>
                                 <option value="male">男性</option>
@@ -258,7 +290,7 @@ export function EditMembersClient() {
                 />
                 <label className="flex items-center gap-1">
                     <input type="checkbox" checked={onlyMissing} onChange={e => setOnlyMissing(e.target.checked)} />
-                    入学年度が未登録の人のみ
+                    入学年度・ふりがなが未登録の人のみ
                 </label>
                 <span className="text-gray-500">
                     {shown.length}人（未登録 {members.filter(m => m.enrollment_year == null).length}人）
@@ -269,6 +301,7 @@ export function EditMembersClient() {
                     <thead>
                         <tr className="border-b text-left">
                             <th className="px-2 py-1">名前</th>
+                            <th className="px-2 py-1">ふりがな</th>
                             <th className="px-2 py-1">アカウント</th>
                             <th className="px-2 py-1">入学年度</th>
                             <th className="px-2 py-1">今年度</th>
@@ -281,12 +314,23 @@ export function EditMembersClient() {
                             const year = parseEnrollmentYear(value)
                             const isLinking = linking?.pendingId === m.user_id
                             return (
-                                <tr key={m.user_id} className={edits.has(m.user_id) ? "bg-yellow-50" : ""}>
+                                <tr key={m.user_id} className={edits.has(m.user_id) || kanaEdits.has(m.user_id) ? "bg-yellow-50" : ""}>
                                     <td className={`px-2 py-1 ${m.gender === "female" ? "text-red-600" : ""}`}>
                                         {label(m)}
                                         {m.name && m.display_name && m.name !== m.display_name && (
                                             <span className="ml-1 text-xs text-gray-500">（{m.name}）</span>
                                         )}
+                                    </td>
+                                    <td className="px-2 py-1">
+                                        {m.has_profile ? (
+                                            <input
+                                                value={kanaEdits.get(m.user_id) ?? m.name_kana ?? ""}
+                                                onChange={e => setKanaEdit(m, e.target.value)}
+                                                placeholder="ふりがな"
+                                                aria-label={`${label(m)}のふりがな`}
+                                                className="w-32 border rounded px-1 py-0.5"
+                                            />
+                                        ) : null}
                                     </td>
                                     <td className="px-2 py-1 text-xs text-gray-600">
                                         {m.is_pending ? "なし" : m.email}
@@ -349,10 +393,10 @@ export function EditMembersClient() {
             <div className="mt-3 flex items-center gap-3">
                 <button
                     onClick={handleSave}
-                    disabled={saving || edits.size === 0}
+                    disabled={saving || changedCount === 0}
                     className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
                 >
-                    {saving ? "保存中..." : `入学年度の変更を保存${edits.size > 0 ? `（${edits.size}人）` : ""}`}
+                    {saving ? "保存中..." : `入学年度・ふりがなの変更を保存${changedCount > 0 ? `（${changedCount}人）` : ""}`}
                 </button>
             </div>
             <p className="mt-6 text-xs text-gray-500">

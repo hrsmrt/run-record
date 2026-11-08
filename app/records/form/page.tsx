@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { timeToMs } from "@/lib/utils"; // 既存の timeToMs 関数を流用
-import { RaceDatalist, RaceInput, useRaceOptions } from "@/components/RaceInput";
+import { RacePicker } from "@/components/RacePicker";
 import { MemberSelect } from "@/components/MemberSelect";
 import { DivisionDatalist } from "@/components/RaceDivisionsEditor";
 import { parseCount } from "@/lib/ranks";
@@ -27,7 +27,6 @@ export default function AddRecordForm() {
   const [message, setMessage] = useState("");
   // 送信後に大会検索欄を空に戻すためのキー
   const [resetKey, setResetKey] = useState(0);
-  const { options: raceOptions, error: raceError } = useRaceOptions();
   // 管理者は登録先のメンバーを選べる（それ以外は常に自分）
   const [selfId, setSelfId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -87,7 +86,10 @@ export default function AddRecordForm() {
     });
 
     if (error) {
-      setMessage(`エラー: ${error.message}`);
+      // 同じ人・同じ種目の記録は1件まで（DB の一意の制約）
+      setMessage(error.code === "23505"
+        ? "エラー: このレースの記録はすでに登録されています（直すときは「記録を編集」から）"
+        : `エラー: ${error.message}`);
     } else {
       setMessage("記録を追加しました！");
       setTime("");
@@ -111,7 +113,7 @@ export default function AddRecordForm() {
       {/* 単体フォーム */}
       <form
         onSubmit={handleSubmit}
-        className="max-w-md mx-auto p-6 bg-white shadow rounded-lg space-y-4 text-black"
+        className="max-w-2xl mx-auto p-6 bg-white shadow rounded-lg space-y-4 text-black"
       >
         <div className="flex flex-col gap-4">
           {adminNeedsMfa && (
@@ -132,36 +134,20 @@ export default function AddRecordForm() {
               />
             </div>
           )}
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center">
-              <span className="mr-2 w-32 text-right whitespace-nowrap">大会（任意）</span>
-              {raceOptions ? (
-                <>
-                  <RaceInput
-                    key={resetKey}
-                    listId="race-options"
-                    options={raceOptions}
-                    value={raceId}
-                    onChange={race => {
-                      setRaceId(race?.id ?? null);
-                      if (race) {
-                        setRaceName(race.eventName);
-                        if (race.heldOn) setDate(race.heldOn);
-                        setDistance(String(race.distanceKm));
-                      }
-                    }}
-                    className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2 bg-white border"
-                  />
-                  <RaceDatalist id="race-options" options={raceOptions} />
-                </>
-              ) : (
-                <span className="flex-1 text-sm text-gray-500">読み込み中...</span>
-              )}
-            </div>
-            <p className="text-xs text-gray-500 text-right">
-              大会情報に登録済みの大会は、選ぶと大会名・日付・距離が入力されます
-            </p>
-            {raceError && <p className="text-xs text-red-600 text-right">大会情報の読み込みに失敗しました: {raceError}</p>}
+          <div className="flex flex-col gap-1 border rounded p-3">
+            <span className="text-sm text-gray-600">大会情報から選ぶ（任意。選ぶと大会名・日付・距離が入ります。見つからなければ追加できます）</span>
+            <RacePicker
+              key={resetKey}
+              value={raceId}
+              onChange={race => {
+                setRaceId(race?.id ?? null);
+                if (race) {
+                  setRaceName(race.eventName);
+                  if (race.heldOn) setDate(race.heldOn);
+                  setDistance(String(race.distanceKm));
+                }
+              }}
+            />
           </div>
           <div className="flex items-center">
             <span className="mr-2 w-32 text-right whitespace-nowrap">タイム(01:23:45)</span>
@@ -286,7 +272,7 @@ export default function AddRecordForm() {
         {message && <p>{message}</p>}
       </form>
 
-      <p className="max-w-md mx-auto mt-4 text-black">
+      <p className="max-w-2xl mx-auto mt-4 text-black">
         ※ タイム: ネットタイムを推奨。グロスタイムはコメント欄へ
         <br />
         ※ 距離: フルマラソンは42.195, ハーフマラソンは21.0975, 100kmは100 など

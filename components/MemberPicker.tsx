@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client"
 import { parseEnrollmentYear } from "@/lib/enrollment"
 import { EnrollmentTag } from "@/components/EnrollmentTag"
 import type { DirectoryMember } from "@/lib/practices"
+import { compareMembers, matchesMember } from "@/lib/members"
 
 const memberLabel = (m: DirectoryMember) => m.name || "名前未設定"
 
@@ -20,14 +21,12 @@ export function MemberPicker({ members, selected, onChange, onAdded }: {
     const [newName, setNewName] = useState("")
     const [newGender, setNewGender] = useState("")
     const [newEnrollment, setNewEnrollment] = useState("")
+    const [newKana, setNewKana] = useState("")
     const [adding, setAdding] = useState(false)
     const [error, setError] = useState("")
 
-    // 入学年度の古い順・名前順。検索中は名前に含む人だけ
-    const sorted = useMemo(() => [...members]
-        .sort((a, b) => (a.enrollment_year ?? 9999) - (b.enrollment_year ?? 9999) || memberLabel(a).localeCompare(memberLabel(b)))
-        .filter(m => query === "" || memberLabel(m).includes(query) || String(m.enrollment_year ?? "").includes(query)),
-    [members, query])
+    // 入学年度の古い順 → ふりがな順。名前・ふりがな・入学年度で絞り込む（ひらがな・カタカナは区別しない）
+    const sorted = useMemo(() => members.filter(m => matchesMember(m, query)).sort(compareMembers), [members, query])
 
     const toggle = (id: string) => {
         const next = new Set(selected)
@@ -45,15 +44,16 @@ export function MemberPicker({ members, selected, onChange, onAdded }: {
         if (enrollmentYear === undefined) { setError("入学年度は西暦4桁（例: 2017）で入力してください"); return }
         if (members.some(m => m.name === name) && !confirm(`「${name}」は一覧にすでにいます。別人として追加しますか？`)) return
         setAdding(true)
-        const { data, error } = await createClient().rpc("add_pending_member", { p_name: name, p_gender: newGender, p_enrollment_year: enrollmentYear })
+        const { data, error } = await createClient().rpc("add_pending_member", { p_name: name, p_gender: newGender, p_enrollment_year: enrollmentYear, p_name_kana: newKana.trim() || null })
         setAdding(false)
         if (error) { setError(`追加に失敗しました: ${error.message}`); return }
-        const member: DirectoryMember = { user_id: data as string, name, gender: newGender, enrollment_year: enrollmentYear, is_pending: true, is_me: false }
+        const member: DirectoryMember = { user_id: data as string, name, gender: newGender, enrollment_year: enrollmentYear, is_pending: true, is_me: false, name_kana: newKana.trim() || null }
         onAdded(member)
         onChange(new Set(selected).add(member.user_id))
         setNewName("")
         setNewGender("")
         setNewEnrollment("")
+        setNewKana("")
     }
 
     const chosen = members.filter(m => selected.has(m.user_id))
@@ -78,7 +78,7 @@ export function MemberPicker({ members, selected, onChange, onAdded }: {
             <input
                 value={query}
                 onChange={e => setQuery(e.target.value)}
-                placeholder="名前・入学年度で絞り込み"
+                placeholder="名前・ふりがな・入学年度で絞り込み"
                 className={`${inputClass} w-56`}
             />
             <div className="max-h-60 overflow-y-auto border rounded bg-white p-1 grid grid-cols-2 sm:grid-cols-3 gap-x-2">
@@ -96,6 +96,7 @@ export function MemberPicker({ members, selected, onChange, onAdded }: {
             <div className="flex flex-wrap items-center gap-2">
                 <span className="text-gray-600">一覧にいない人を追加:</span>
                 <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="表示名" className={`${inputClass} w-32`} />
+                <input value={newKana} onChange={e => setNewKana(e.target.value)} placeholder="ふりがな" className={`${inputClass} w-32`} />
                 <select value={newGender} onChange={e => setNewGender(e.target.value)} className={inputClass} aria-label="性別">
                     <option value="">性別</option>
                     <option value="male">男性</option>

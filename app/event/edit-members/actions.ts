@@ -28,6 +28,7 @@ export type NewAccount = {
     pendingId: string | null
     displayName: string
     name: string
+    nameKana: string
     gender: string
     enrollmentYear: string
 }
@@ -77,6 +78,7 @@ export async function createAccount(input: NewAccount): Promise<ActionResult<{ e
             user_id: userId,
             name: input.name.trim() || displayName,
             display_name: displayName,
+            name_kana: input.nameKana.trim() || null,
             gender: input.gender,
             enrollment_year: enrollmentYear,
         })

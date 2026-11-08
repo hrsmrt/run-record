@@ -165,6 +165,15 @@ export function Header() {
                 </li>
                 <li>
                   <Link
+                    href="/records/bulk"
+                    className="block px-4 py-2 hover:bg-gray-200"
+                    onClick={() => setOpen(false)}
+                  >
+                    記録をまとめて登録（幹事）
+                  </Link>
+                </li>
+                <li>
+                  <Link
                     href="/records/form"
                     className="block px-4 py-2 hover:bg-gray-200"
                     onClick={() => setOpen(false)}
