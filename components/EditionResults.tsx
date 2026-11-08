@@ -2,7 +2,7 @@
 
 import { Fragment, useState } from "react"
 import { formatTime } from "@/lib/utils"
-import { SplitPoint } from "@/lib/splits"
+import { SplitPoint, formatDistance } from "@/lib/splits"
 import { SplitTable } from "@/components/SplitTable"
 import { RaceGapChart } from "@/components/RaceGapChart"
 import { formatRank } from "@/lib/ranks"
@@ -40,7 +40,6 @@ export function EditionResults({ races, results, splits }: {
     const [openId, setOpenId] = useState<number | null>(null)
     const [sortKey, setSortKey] = useState<SortKey>("clever")
     const [sortAsc, setSortAsc] = useState(false)
-    const raceById = new Map(races.map(r => [r.id, r]))
 
     const handleSort = (key: SortKey) => {
         if (sortKey === key) setSortAsc(!sortAsc)
@@ -61,108 +60,112 @@ export function EditionResults({ races, results, splits }: {
         return (sortAsc ? 1 : -1) * diff
     }
 
-    // 種目（距離の長い順）ごとのまとまりは保ち、その中で選んだ列で並べる
-    const sorted = [...results].sort((a, b) =>
-        (raceById.get(b.race_id)?.distance_km ?? 0) - (raceById.get(a.race_id)?.distance_km ?? 0)
-        || compareBy(a, b)
-        || a.time_ms - b.time_ms)
+    // 種目（距離の長い順）ごとに表を分け、その中で選んだ列で並べる（並べ替えはすべての種目に共通）
+    const groups = [...races]
+        .sort((a, b) => b.distance_km - a.distance_km)
+        .map(race => ({ race, rows: results.filter(r => r.race_id === race.id).sort((a, b) => compareBy(a, b) || a.time_ms - b.time_ms) }))
+        .filter(g => g.rows.length > 0)
 
-    if (sorted.length === 0) return null
-    // 順位を入力した人がいるときだけ順位の列を出す
-    const hasRank = sorted.some(r => r.overall_rank != null || r.gender_rank != null || r.division_rank != null)
-    const columns = hasRank ? 8 : 5
+    if (groups.length === 0) return null
 
     return (
-        <div className="mt-2">
-            <h4 className="text-xs font-bold text-gray-600 mb-1">参加者の記録</h4>
-            <div className="bg-white text-black p-2 text-[8px] md:text-base">
-                <div className="overflow-x-auto">
-                    <table className="border-collapse w-full text-black bg-white font-mono whitespace-nowrap">
-                        <thead>
-                            <tr className="bg-white border-b">
-                                <th className="px-1 md:px-3 py-0 text-left">種目</th>
-                                <th className="px-1 md:px-3 py-0 text-left cursor-pointer" onClick={() => handleSort("name")}>
-                                    名前{arrow("name")}
-                                </th>
-                                <th className="px-1 md:px-3 py-0 text-right cursor-pointer" onClick={() => handleSort("time")}>
-                                    記録{arrow("time")}
-                                </th>
-                                <th
-                                    className="px-1 md:px-3 py-0 text-right cursor-pointer"
-                                    onClick={() => handleSort("clever")}
-                                    title="RUNNET のクレバー指数"
-                                >
-                                    クレバー{arrow("clever")}
-                                </th>
-                                {hasRank && (
-                                    <>
-                                        <th className="px-1 md:px-3 py-0 text-right cursor-pointer" onClick={() => handleSort("rank")}>
-                                            総合{arrow("rank")}
-                                        </th>
-                                        <th className="px-1 md:px-3 py-0 text-right">男女別</th>
-                                        <th className="px-1 md:px-3 py-0 text-left">部門</th>
-                                    </>
-                                )}
-                                <th className="px-1 md:px-3 py-0 text-center">ラップ</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-200">
-                            {sorted.map(r => {
-                                const points = splits.get(r.id) ?? []
-                                const open = openId === r.id
-                                return (
-                                    <Fragment key={r.id}>
-                                        <tr>
-                                            <td className="px-1 md:px-3 py-0">{raceById.get(r.race_id)?.name ?? ""}</td>
-                                            <td className={`px-1 md:px-3 py-0 ${r.gender === "female" ? "text-red-600" : ""}`}>{r.name}<EnrollmentTag year={r.enrollment_year} />{r.entered_by_name && <span className="ml-1 text-[0.75em] text-gray-400" title="本人以外が登録した記録">登録: {r.entered_by_name}</span>}</td>
-                                            <td className="px-1 md:px-3 py-0 text-right">{formatTime(r.time_ms)}</td>
-                                            <td className="px-1 md:px-3 py-0 text-right">{r.clever_index ?? ""}</td>
-                                            {hasRank && (
-                                                <>
-                                                    <td className="px-1 md:px-3 py-0 text-right">{formatRank(r.overall_rank, r.overall_total)}</td>
-                                                    <td className="px-1 md:px-3 py-0 text-right">{formatRank(r.gender_rank, r.gender_total)}</td>
-                                                    <td className="px-1 md:px-3 py-0">
-                                                        {r.division ?? ""}{r.division && r.division_rank != null && " "}{formatRank(r.division_rank, r.division_total)}
-                                                    </td>
-                                                </>
-                                            )}
-                                            <td className="px-1 md:px-3 py-0 text-center">
-                                                {points.length > 0 && (
-                                                    <button
-                                                        onClick={() => setOpenId(open ? null : r.id)}
-                                                        className="text-blue-600 hover:underline"
-                                                        aria-expanded={open}
-                                                    >
-                                                        {open ? "閉じる" : "表示"}
-                                                    </button>
-                                                )}
-                                            </td>
-                                        </tr>
-                                        {open && (
-                                            <tr>
-                                                <td colSpan={columns} className="px-1 md:px-3 pb-2">
-                                                    <SplitTable points={points} />
-                                                </td>
-                                            </tr>
-                                        )}
-                                    </Fragment>
-                                )
-                            })}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            {/* ラップを登録した人が2人以上いる種目は、人との差をグラフで表示 */}
-            {[...races].sort((a, b) => b.distance_km - a.distance_km).map(race => {
-                const runners = sorted
-                    .filter(r => r.race_id === race.id && (splits.get(r.id)?.length ?? 0) > 0)
+        <div className="mt-2 flex flex-col gap-3">
+            <h4 className="text-xs font-bold text-gray-600">参加者の記録</h4>
+            {groups.map(({ race, rows }) => {
+                // 順位を入力した人がいる種目だけ順位の列を出す
+                const hasRank = rows.some(r => r.overall_rank != null || r.gender_rank != null || r.division_rank != null)
+                const columns = hasRank ? 7 : 4
+                // ラップを登録した人が2人以上いれば、人との差をグラフで表示
+                const runners = rows
+                    .filter(r => (splits.get(r.id)?.length ?? 0) > 0)
                     .map(r => ({ id: r.id, name: r.name, timeMs: r.time_ms, points: splits.get(r.id)! }))
-                if (runners.length < 2) return null
                 return (
-                    <div key={race.id} className="mt-3 bg-white p-2">
-                        {races.length > 1 && <p className="text-xs font-bold mb-1">{race.name}</p>}
-                        <RaceGapChart runners={runners} distanceKm={race.distance_km} />
-                    </div>
+                    <section key={race.id} className="flex flex-col gap-1">
+                        <h5 className="text-sm font-bold">
+                            {race.name}
+                            <span className="ml-2 text-xs font-normal text-gray-500">{formatDistance(race.distance_km)}・{rows.length}人</span>
+                        </h5>
+                        <div className="bg-white text-black p-2 text-[8px] md:text-base">
+                            <div className="overflow-x-auto">
+                                <table className="border-collapse w-full text-black bg-white font-mono whitespace-nowrap">
+                                        <thead>
+                                            <tr className="bg-white border-b">
+                                                <th className="px-1 md:px-3 py-0 text-left cursor-pointer" onClick={() => handleSort("name")}>
+                                                    名前{arrow("name")}
+                                                </th>
+                                                <th className="px-1 md:px-3 py-0 text-right cursor-pointer" onClick={() => handleSort("time")}>
+                                                    記録{arrow("time")}
+                                                </th>
+                                                <th
+                                                    className="px-1 md:px-3 py-0 text-right cursor-pointer"
+                                                    onClick={() => handleSort("clever")}
+                                                    title="RUNNET のクレバー指数"
+                                                >
+                                                    クレバー{arrow("clever")}
+                                                </th>
+                                                {hasRank && (
+                                                    <>
+                                                        <th className="px-1 md:px-3 py-0 text-right cursor-pointer" onClick={() => handleSort("rank")}>
+                                                            総合{arrow("rank")}
+                                                        </th>
+                                                        <th className="px-1 md:px-3 py-0 text-right">男女別</th>
+                                                        <th className="px-1 md:px-3 py-0 text-left">部門</th>
+                                                    </>
+                                                )}
+                                                <th className="px-1 md:px-3 py-0 text-center">ラップ</th>
+                                            </tr>
+                                        </thead>
+                                    <tbody className="divide-y divide-gray-200">
+                                            {rows.map(r => {
+                                                const points = splits.get(r.id) ?? []
+                                                const open = openId === r.id
+                                                return (
+                                                    <Fragment key={r.id}>
+                                                        <tr>
+                                                            <td className={`px-1 md:px-3 py-0 ${r.gender === "female" ? "text-red-600" : ""}`}>{r.name}<EnrollmentTag year={r.enrollment_year} />{r.entered_by_name && <span className="ml-1 text-[0.75em] text-gray-400" title="本人以外が登録した記録">登録: {r.entered_by_name}</span>}</td>
+                                                            <td className="px-1 md:px-3 py-0 text-right">{formatTime(r.time_ms)}</td>
+                                                            <td className="px-1 md:px-3 py-0 text-right">{r.clever_index ?? ""}</td>
+                                                            {hasRank && (
+                                                                <>
+                                                                    <td className="px-1 md:px-3 py-0 text-right">{formatRank(r.overall_rank, r.overall_total)}</td>
+                                                                    <td className="px-1 md:px-3 py-0 text-right">{formatRank(r.gender_rank, r.gender_total)}</td>
+                                                                    <td className="px-1 md:px-3 py-0">
+                                                                        {r.division ?? ""}{r.division && r.division_rank != null && " "}{formatRank(r.division_rank, r.division_total)}
+                                                                    </td>
+                                                                </>
+                                                            )}
+                                                            <td className="px-1 md:px-3 py-0 text-center">
+                                                                {points.length > 0 && (
+                                                                    <button
+                                                                        onClick={() => setOpenId(open ? null : r.id)}
+                                                                        className="text-blue-600 hover:underline"
+                                                                        aria-expanded={open}
+                                                                    >
+                                                                        {open ? "閉じる" : "表示"}
+                                                                    </button>
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                        {open && (
+                                                            <tr>
+                                                                <td colSpan={columns} className="px-1 md:px-3 pb-2">
+                                                                    <SplitTable points={points} />
+                                                                </td>
+                                                            </tr>
+                                                        )}
+                                                    </Fragment>
+                                                )
+                                            })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        {runners.length >= 2 && (
+                            <div className="bg-white p-2">
+                                <RaceGapChart runners={runners} distanceKm={race.distance_km} />
+                            </div>
+                        )}
+                    </section>
                 )
             })}
         </div>

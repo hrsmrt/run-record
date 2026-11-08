@@ -9,12 +9,12 @@ type Profile = {
   name: string
   display_name: string
   gender: string
-  birth_year: number
+  birth_year: number | null
 }
 
 export default function ProfileCreatePage() {
   const router = useRouter()
-  const [profile, setProfile] = useState<Profile>({ name: "", display_name: "", gender: "", birth_year: 2000 })
+  const [profile, setProfile] = useState<Profile>({ name: "", display_name: "", gender: "", birth_year: null })
   const [enrollmentStr, setEnrollmentStr] = useState("")
   const [nameKana, setNameKana] = useState("")
   const [loading, setLoading] = useState(false)
@@ -107,8 +107,8 @@ export default function ProfileCreatePage() {
           生年:
           <input
             type="number"
-            value={profile.birth_year}
-            onChange={(e) => setProfile({ ...profile, birth_year: Number(e.target.value) })}
+            value={profile.birth_year ?? ""}
+            onChange={(e) => setProfile({ ...profile, birth_year: e.target.value === "" ? null : Number(e.target.value) })}
             className="border p-2 w-full"
           />
         </label>

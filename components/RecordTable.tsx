@@ -141,7 +141,7 @@ export default function RecordTable({ view, genderFilter, distance, raceType, da
               <tr className="bg-white">
                 <th className="px-1 md:px-3 py-0 w-[6%] lg:w-[4%]"></th>
                 <th
-                  className="px-1 md:px-3 py-0 cursor-pointer w-[6%] lg:w-[4%]" 
+                  className="px-1 md:px-3 py-0 cursor-pointer w-[14%] md:w-[9%] lg:w-[7%]"
                   onClick={() => handleSort("name")}
                 >
                   名前 {sortKey === "name" ? (sortAsc ? "↑" : "↓") : ""}
@@ -192,7 +192,8 @@ export default function RecordTable({ view, genderFilter, distance, raceType, da
                 <Fragment key={r.id}>
                 <tr>
                   <td className="px-1 md:px-3 py-0 text-right">{index + 1}.</td>
-                  <td className={`px-1 md:px-3 py-0 ${r.gender === "female" ? "text-red-600" : "text-black"}`}>
+                  {/* 狭い画面では入学年度が次の行に回るよう折り返しを許す（隣の列に重ならないように） */}
+                  <td className={`px-1 md:px-3 py-0 whitespace-normal break-words ${r.gender === "female" ? "text-red-600" : "text-black"}`}>
                     {r.name}<EnrollmentTag year={r.enrollment_year} />
                   </td>
                   <td className="px-1 md:px-3 py-0 text-right">

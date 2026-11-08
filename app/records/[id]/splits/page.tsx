@@ -48,11 +48,12 @@ export default function SplitsPage() {
         const saved = (data ?? []).map((s, i) => ({
             key: i,
             distanceStr: String(Number(s.distance_km)),
-            timeStr: formatElapsed(s.elapsed_ms),
+            // スタートのロスが 0 のときは空欄（空欄は 0 として扱う。入力のたびに 0:00 を消さなくてよいように）
+            timeStr: Number(s.distance_km) === 0 && s.elapsed_ms === 0 ? "" : formatElapsed(s.elapsed_ms),
             rankStr: countToStr(s.rank),
         }))
-        // 未登録ならスタート行（ロス 0:00）を最初から表示しておく
-        setRows(saved.length > 0 ? saved : [{ key: 0, distanceStr: "0", timeStr: "0:00", rankStr: "" }])
+        // 未登録ならスタート行（ロスは空欄 = 0）を最初から表示しておく
+        setRows(saved.length > 0 ? saved : [{ key: 0, distanceStr: "0", timeStr: "", rankStr: "" }])
         setNextKey(Math.max(saved.length, 1))
         setDirty(false)
     }, [resultId])
@@ -98,7 +99,7 @@ export default function SplitsPage() {
     // スタート地点（0km、号砲からスタートライン通過までのロス）を先頭に追加
     const addStart = () => {
         if (hasStart) return
-        setRows(prev => [{ key: nextKey, distanceStr: "0", timeStr: "0:00", rankStr: "" }, ...prev])
+        setRows(prev => [{ key: nextKey, distanceStr: "0", timeStr: "", rankStr: "" }, ...prev])
         setNextKey(k => k + 1)
         setDirty(true)
     }
@@ -118,9 +119,9 @@ export default function SplitsPage() {
             .map((d, i) => ({
                 key: nextKey + i,
                 distanceStr: String(d),
-                // スタートはロス 0:00、ゴールは「ロス + 記録（ネット）」を入れておく
+                // スタートのロスは空欄（= 0）、ゴールは「ロス + 記録（ネット）」を入れておく
                 timeStr: d === 0
-                    ? "0:00"
+                    ? ""
                     : d === result.distance && result.time_ms ? formatElapsed((startMs ?? 0) + result.time_ms) : "",
                 rankStr: "",
             }))
@@ -130,12 +131,16 @@ export default function SplitsPage() {
     }
 
     // 区間ラップ表示用：距離順に並べ、入力が正しい行だけで前の地点との差を計算
-    const parsed = rows.map(r => ({
-        ...r,
-        km: r.distanceStr.trim() === "" ? NaN : Number(r.distanceStr),
-        ms: parseElapsed(r.timeStr),
-        rank: parseCount(r.rankStr),
-    }))
+    const parsed = rows.map(r => {
+        const km = r.distanceStr.trim() === "" ? NaN : Number(r.distanceStr)
+        return {
+            ...r,
+            km,
+            // スタート（0km）のロスは空欄なら 0
+            ms: km === 0 && r.timeStr.trim() === "" ? 0 : parseElapsed(r.timeStr),
+            rank: parseCount(r.rankStr),
+        }
+    })
     // スタートのロス（号砲 → スタートライン通過）。ネット = 通過タイム − ロス
     const startMs = parsed.find(r => r.km === 0)?.ms ?? null
     const goal = result?.distance != null ? parsed.find(r => Math.abs(r.km - result.distance!) < 0.001) : undefined
@@ -274,8 +279,10 @@ export default function SplitsPage() {
                                     <td className="px-2 py-1">
                                         <input
                                             className={`w-24 px-1 border rounded ${r.timeStr && parseElapsed(r.timeStr) === null ? "border-red-500" : ""}`}
-                                            placeholder="1:23:45"
+                                            placeholder={r.distanceStr.trim() !== "" && km === 0 ? "0:00（ロスなし）" : "1:23:45"}
                                             value={r.timeStr}
+                                            // 入っているタイムを打ち直しやすいよう、選んだら全体を選択する
+                                            onFocus={e => e.currentTarget.select()}
                                             onChange={e => updateRow(r.key, { timeStr: e.target.value })}
                                         />
                                     </td>
@@ -337,7 +344,7 @@ export default function SplitsPage() {
             <p className="mt-4 text-xs text-gray-500">
                 ※ 通過タイムは号砲からの経過時間（グロス）で入力します。
                 <br />
-                ※ 「スタート」（0km）には、号砲からスタートラインを通過するまでのロスタイムを入力します。ロスがなければ 0:00 のままで構いません。
+                ※ 「スタート」（0km）には、号砲からスタートラインを通過するまでのロスタイムを入力します。ロスがなければ空欄のままで構いません（0:00 として保存します）。
                 <br />
                 ※ ネット（通過タイム − ロス）は自動計算されます。ゴールのネットが記録（ネットタイム）と一致するはずです。
                 <br />

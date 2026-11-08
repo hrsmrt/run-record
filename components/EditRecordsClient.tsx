@@ -158,6 +158,7 @@ export function EditRecordsClient() {
 
     for (const u of updates) {
       if (isNaN(u.time_ms)) { errors.push(`ID ${u.id} の時間が不正です`); continue }
+      if (isNaN(u.distance) || u.distance <= 0) { errors.push(`ID ${u.id} の距離を入力してください`); continue }
       if (u.clever_index !== null && isNaN(u.clever_index)) { errors.push(`ID ${u.id} のクレバー指数が不正です`); continue }
       if ([u.overall_rank, u.gender_rank, u.division_rank].includes(undefined)) { errors.push(`ID ${u.id} の順位は正の整数で入力してください`); continue }
       const { error } = await supabase.from("results").update({
@@ -286,7 +287,7 @@ export function EditRecordsClient() {
                   />
                 </td>
                 <td className="px-2 py-1"><input className={`w-full px-1 ${record.race_id ? "bg-gray-100 text-gray-500" : ""}`} readOnly={record.race_id != null} value={record.race_name} onChange={e => setRecords(prev => prev.map(r => r.id===record.id?{...r,race_name:e.target.value}:r))}/></td>
-                <td className="px-2 py-1"><input className="w-20 px-1" type="number" value={record.distance} onChange={e => setRecords(prev => prev.map(r => r.id===record.id?{...r,distance:Number(e.target.value)}:r))}/></td>
+                <td className="px-2 py-1"><input className="w-20 px-1" inputMode="decimal" value={Number.isNaN(record.distance) ? "" : record.distance} onChange={e => setRecords(prev => prev.map(r => r.id===record.id?{...r,distance:e.target.value.trim() === "" ? NaN : Number(e.target.value)}:r))}/></td>
                 <td className="px-2 py-1">
                   <select value={record.race_type} onChange={e => setRecords(prev => prev.map(r => r.id===record.id?{...r,race_type:e.target.value}:r))}>
                     <option value=""></option>

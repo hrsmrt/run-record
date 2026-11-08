@@ -9,7 +9,7 @@ type Profile = {
     name: string
     display_name: string
     gender: string
-    birth_year: number
+    birth_year: number | null
 }
 
 export default function ProfileEditPage() {
@@ -135,7 +135,7 @@ export default function ProfileEditPage() {
                     <input
                         type="number"
                         value={profile.birth_year ?? ""}
-                        onChange={(e) => setProfile({ ...profile, birth_year: Number(e.target.value) })}
+                        onChange={(e) => setProfile({ ...profile, birth_year: e.target.value === "" ? null : Number(e.target.value) })}
                         className="border p-2 w-full"
                     />
                     入学年度:
