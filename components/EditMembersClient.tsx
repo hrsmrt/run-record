@@ -14,6 +14,8 @@ type Member = {
     gender: string | null
     enrollment_year: number | null
     name_kana: string | null
+    // 非表示（検証用など）。メンバーを選ぶ一覧・記録の一覧に出ない
+    is_hidden: boolean
     // アカウントなし（profiles_pending）
     is_pending: boolean
     // アカウントはあるがプロフィールがない人は false
@@ -164,6 +166,17 @@ export function EditMembersClient() {
         load()
     }
 
+    // 非表示はチェックしたらすぐ保存する
+    const handleHidden = async (m: Member, hidden: boolean) => {
+        if (hidden && !confirm(`${label(m)}を非表示にしますか？ メンバーを選ぶ一覧や記録の一覧に出なくなります（あとで戻せます）。`)) return
+        setBusy(true)
+        const { error } = await createClient().rpc("admin_set_member_hidden", { p_user_id: m.user_id, p_hidden: hidden })
+        setBusy(false)
+        if (error) { setMessage({ text: `保存に失敗しました: ${error.message}`, isError: true }); return }
+        setMembers(prev => (prev ?? []).map(x => x.user_id === m.user_id ? { ...x, is_hidden: hidden } : x))
+        setMessage({ text: `${label(m)}を${hidden ? "非表示にしました" : "表示に戻しました"}`, isError: false })
+    }
+
     const handleReset = async (m: Member) => {
         if (!confirm(`${m.email} のパスワードを再発行しますか？ 今のパスワードは使えなくなります。`)) return
         setBusy(true)
@@ -305,6 +318,7 @@ export function EditMembersClient() {
                             <th className="px-2 py-1">アカウント</th>
                             <th className="px-2 py-1">入学年度</th>
                             <th className="px-2 py-1">今年度</th>
+                            <th className="px-2 py-1">非表示</th>
                             <th className="px-2 py-1">操作</th>
                         </tr>
                     </thead>
@@ -314,7 +328,7 @@ export function EditMembersClient() {
                             const year = parseEnrollmentYear(value)
                             const isLinking = linking?.pendingId === m.user_id
                             return (
-                                <tr key={m.user_id} className={edits.has(m.user_id) || kanaEdits.has(m.user_id) ? "bg-yellow-50" : ""}>
+                                <tr key={m.user_id} className={edits.has(m.user_id) || kanaEdits.has(m.user_id) ? "bg-yellow-50" : m.is_hidden ? "bg-gray-100 text-gray-500" : ""}>
                                     <td className={`px-2 py-1 ${m.gender === "female" ? "text-red-600" : ""}`}>
                                         {label(m)}
                                         {m.name && m.display_name && m.name !== m.display_name && (
@@ -349,6 +363,17 @@ export function EditMembersClient() {
                                         ) : <span className="text-xs text-gray-500">プロフィール登録後</span>}
                                     </td>
                                     <td className="px-2 py-1 text-gray-600">{year != null ? `${yearsSinceEnrollment(year)}年目` : ""}</td>
+                                    <td className="px-2 py-1 text-center">
+                                        {m.has_profile && (
+                                            <input
+                                                type="checkbox"
+                                                checked={m.is_hidden}
+                                                disabled={busy}
+                                                onChange={e => handleHidden(m, e.target.checked)}
+                                                aria-label={`${label(m)}を非表示にする`}
+                                            />
+                                        )}
+                                    </td>
                                     <td className="px-2 py-1 text-xs">
                                         {m.is_pending ? (
                                             isLinking ? (
@@ -404,6 +429,7 @@ export function EditMembersClient() {
                 アカウントのあるメンバーは、本人もプロフィールで入力できます。
                 「既存のアカウントに紐付け」は、ダッシュボードで作ったアカウントや、本人がプロフィールを作って2人に分かれた場合に使います。
                 管理者・閲覧用アカウントのパスワードはここでは再発行できません。
+                「非表示」にした人（検証用など）は、メンバーを選ぶ一覧・記録の一覧・練習録の参加メンバーに出なくなります。練習録や掲示板の書き込みは残るので、必要なら削除してください。
             </p>
         </div>
     )

@@ -91,6 +91,7 @@
   - `profiles.name_kana`・`profiles_pending.name_kana`、`member_names.name_kana`。本人はプロフィール、管理者はメンバー編集（`admin_set_name_kana()`）で入れる
   - 並び順は入学年度の新しい順 → ふりがな順（入学年度なしは最後。練習録の参加メンバーは主催者が先頭）、検索は名前・ふりがな・入学年度（「17」で2017年度入学）、ひらがな・カタカナを区別しない（`lib/members.ts`）
   - 記録の一括登録のメンバー選択は検索できる入力欄 `components/MemberCombobox.tsx`（管理者・幹事とも `entry_member_list()`）
+- **メンバーの非表示**（`sql/2026-11-08_hidden_members.sql`）: `profiles.is_hidden`・`profiles_pending.is_hidden`（`member_names.is_hidden`）。管理者がメンバー編集でチェック（`admin_set_member_hidden()`）。非表示の人は `public_results`・`member_directory()`・`entry_member_list()`・`public_practice_participants`・`public_practice_rsvps` から除く（検証用の架空のメンバー向け。書き込み類は残る）
 - **メンバーによる大会・開催回・種目の追加**（同じ SQL）
   - `events`・`event_editions`・`races` に `created_by`。追加はメンバー全員、修正・削除は追加した本人と管理者（既存の行は管理者のみ）。`public_catalog_creators` で大会詳細に「追加: 〇〇」
   - 選ぶ・追加するのは `components/RacePicker.tsx`（大会 → 開催日 → 種目。似た名前の大会を「この大会ではありませんか？」と出す。`normalizeEventName` は空白・第〇回・年・「大会」を無視）。記録追加・一括登録・幹事の入口で使う
@@ -151,6 +152,7 @@
 - `2026-11-08_practice_plan_routes.sql` - 練習録のルート案の列、`public_practices` に追加
 - `2026-11-08_edition_organizers.sql` - 開催回ごとの幹事、記録の一意の制約、登録させない設定、変更履歴、`public_results.entered_by_name`
 - `2026-11-08_member_catalog.sql` - ふりがな、メンバーによる大会・開催回・種目の追加、重複の防止、管理者による「まとめる」
+- `2026-11-08_hidden_members.sql` - メンバーの非表示（検証用など）
 
 #### アプリ
 - メンバー編集ページでアカウント作成（アカウントなしの人の引き継ぎ可）・既存アカウントへの紐付け・パスワード再発行
