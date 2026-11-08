@@ -26,7 +26,7 @@
 - `/event` - 大会一覧（都道府県コード順）
 - `/event/editions` - 開催一覧
 - `/event/schedule` - カレンダー（年度・週単位、祝日表示）
-- `/event/[id]` - 大会詳細（基本情報・開催回・種目・参加者の記録とラップ）
+- `/event/[id]` - 大会詳細（基本情報・開催回・種目・コースの地図・参加者の記録とラップ）
 - `/event/edit-events` - 大会編集（admin のみ）
 - `/event/edit-editions` - 開催日編集（admin のみ）
 - `/event/edit-races` - 種目編集（admin のみ。エントリー数・部門ごとのエントリー数もここ）
@@ -81,6 +81,11 @@
   - 取り込みはすべてブラウザ側（`lib/gpx.ts`）: 距離はハバーサインの合計、累積標高は道のり±25mで平均し3m以上の上りだけ数える。スタート・ゴールから指定 m 以内を消し（既定300m）、位置と標高だけの GPX にして保存（時刻・心拍は入れない）。距離・累積標高は消す前の全体で数える
   - 地図用の線 `route_line` は最大約600点に間引いた `[緯度, 経度, 標高, km]` の配列。一覧では取らない（`PRACTICE_LIST_COLUMNS`）
   - 地図は Leaflet + 地理院タイル（淡色・標準・写真、出典表示が必要）、`components/RouteMap.tsx`。高低差は `components/ElevationChart.tsx`。Tailwind の `img { max-width: 100% }` がタイルを崩すので `globals.css` で地図内だけ外している
+- **大会のコース**（`sql/2026-11-08_race_routes.sql`）
+  - 種目ごとに1つ、メンバーが計測した GPX を `race_routes`（`races` とは別の表）と非公開バケット `race-routes`（`種目ID/route.gpx`）に保存
+  - 登録・差し替え・削除はその種目に自分の記録がある人と管理者（`race_route_can_edit()`、画面のボタン用に `race_route_editable()`）。`uploaded_by` は RLS で本人に固定し、`public_race_routes` で登録した人の名前を出す
+  - 大会詳細の開催回ごとに `components/RaceRoutes.tsx`。地図は「地図を表示」で開いたときに `route_line` を取る。5kmごとの印（GPS の目安）
+  - GPX の選択・消す範囲・プレビューは練習録と共通の `components/GpxPicker.tsx`（大会は既定で消さない）
 - **大会レポート**: `race_reports`（開催回ごと、感想・観光の文章のみ、改行とリンク）、表示は `public_race_reports`
 - **公開ビュー**: `public_results` に一本化（旧 `public_record`・`public_full_best` など14個は削除済み）
   - `category`（5km / 10km / half / full / 100km / under100 / over100 / time）、`is_best`（利用者×区分のベスト。時間走は距離が長い方）、`has_splits`（ラップ有無）
@@ -102,6 +107,7 @@
 - `2026-11-08_accounts.sql` - `admin_list_members()` を作り直し（プロフィールのないアカウント・メール・最終ログインを追加）、`admin_link_account()` を追加
 - `2026-11-08_practices.sql` - 練習録（表・公開ビュー・関数）、`admin_link_account()` に練習録の付け替えを追加
 - `2026-11-08_practice_routes.sql` - GPX のファイル置き場と権限、`public_practices` に `route_line`・`route_path` を追加
+- `2026-11-08_race_routes.sql` - 大会のコース（`race_routes`、ファイル置き場、`public_race_routes`）
 
 #### アプリ
 - メンバー編集ページでアカウント作成（アカウントなしの人の引き継ぎ可）・既存アカウントへの紐付け・パスワード再発行
@@ -110,6 +116,8 @@
 - 練習録（日付・タイトル・主催者・参加メンバー・距離・主催者コメント・コメント）
 - 練習録のルート（GPX の取り込み、地理院地図、距離・累積標高の自動計算、スタート・ゴール付近の削除、高低差のグラフ）
 - ホームをリンクカードから「大会の記録と練習録の新しい順の一覧」に変更し、メニューに大会情報を追加
+- 練習録の地図の全画面表示、大会のコース（種目ごとの GPX、登録した人の名前、5kmごとの印）
+- 今後の候補: GPX の時刻からラップを自動で入れる（ラップ入力ページの補助。GPX は保存しない）
 
 ### 2026-11-06: 出場大会記録、入学年度、OBOG 向けの文言
 

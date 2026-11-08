@@ -10,6 +10,7 @@ import { EditionResults, EventResult } from "@/components/EditionResults"
 import { SplitPoint } from "@/lib/splits"
 import { EditionReports, RaceReport } from "@/components/EditionReports"
 import { VIEWER_ROLE } from "@/lib/viewer"
+import { RACE_ROUTE_COLUMNS, RaceRoutes, type RaceRouteInfo } from "@/components/RaceRoutes"
 
 type Race = {
     id: number
@@ -82,6 +83,10 @@ export default function EventDetailPage() {
     const [reports, setReports] = useState<RaceReport[]>([])
     // レポートを書けるのはメンバー（閲覧用アカウント以外）のみ
     const [canWrite, setCanWrite] = useState(false)
+    // 種目ごとのコース（GPX）と、自分が登録できる種目
+    const [routes, setRoutes] = useState<Map<number, RaceRouteInfo>>(new Map())
+    const [routeEditable, setRouteEditable] = useState<Set<number>>(new Set())
+    const [routeReload, setRouteReload] = useState(0)
 
     useEffect(() => {
         const fetchEvent = async () => {
@@ -153,6 +158,24 @@ export default function EventDetailPage() {
         }
         fetchEvent()
     }, [id])
+
+    // コースは登録・差し替えのたびに読み直す（routeReload を増やす）
+    useEffect(() => {
+        if (!event) return
+        const raceIds = event.event_editions.flatMap(ed => ed.races.map(r => r.id))
+        if (raceIds.length === 0) return
+        const fetchRoutes = async () => {
+            const supabase = createClient()
+            const [{ data: routeData }, { data: editableData }] = await Promise.all([
+                supabase.from("public_race_routes").select(RACE_ROUTE_COLUMNS).in("race_id", raceIds),
+                // 閲覧用アカウントは登録できないので問い合わせない
+                canWrite ? supabase.rpc("race_route_editable", { p_race_ids: raceIds }) : Promise.resolve({ data: [] }),
+            ])
+            setRoutes(new Map(((routeData ?? []) as RaceRouteInfo[]).map(r => [r.race_id, r])))
+            setRouteEditable(new Set((editableData ?? []) as number[]))
+        }
+        fetchRoutes()
+    }, [event, canWrite, routeReload])
 
     // データ読み込み後に描画されるため、URL の #edition-○ への移動を読み込み完了後に行う
     useEffect(() => {
@@ -254,6 +277,12 @@ export default function EventDetailPage() {
                                             </div>
                                         </div>
                                     )}
+                                    <RaceRoutes
+                                        races={ed.races}
+                                        routes={routes}
+                                        editable={routeEditable}
+                                        onChanged={() => setRouteReload(n => n + 1)}
+                                    />
                                     <EditionResults
                                         races={ed.races}
                                         results={results.filter(r => ed.races.some(ra => ra.id === r.race_id))}

@@ -6,14 +6,12 @@ import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { useUnsavedWarning } from "@/lib/use-unsaved-warning"
 import { MemberPicker } from "@/components/MemberPicker"
-import { type DirectoryMember, formatKm, parseKm } from "@/lib/practices"
-import { type GpxPoint, type ProcessedRoute, type RoutePoint, parseGpx, processRoute } from "@/lib/gpx"
+import { type DirectoryMember, parseKm } from "@/lib/practices"
+import type { RoutePoint } from "@/lib/gpx"
 import { RouteMap } from "@/components/RouteMap"
+import { GpxPicker, type GpxSelection } from "@/components/GpxPicker"
 
 const ROUTE_BUCKET = "practice-routes"
-// スタート・ゴール付近を消す範囲の選択肢（m）
-const TRIM_OPTIONS = [0, 100, 200, 300, 500, 1000]
-const MAX_GPX_BYTES = 10 * 1024 * 1024
 
 const MEMO_MAX = 2000
 
@@ -36,11 +34,8 @@ export function PracticeForm({ practiceId }: { practiceId?: number }) {
     // 登録済みのルート
     const [savedRoute, setSavedRoute] = useState<{ path: string; line: RoutePoint[] } | null>(null)
     const [removeRoute, setRemoveRoute] = useState(false)
-    // 新しく選んだ GPX（元の点はブラウザ内だけに持ち、消す範囲を変えたら作り直す）
-    const [gpxPoints, setGpxPoints] = useState<GpxPoint[] | null>(null)
-    const [gpxName, setGpxName] = useState("")
-    const [gpxError, setGpxError] = useState("")
-    const [trimM, setTrimM] = useState(300)
+    // 新しく選んだ GPX
+    const [gpx, setGpx] = useState<GpxSelection>({ hasFile: false, route: null, error: "" })
     const [dirty, setDirty] = useState(false)
     const [saving, setSaving] = useState(false)
     const [message, setMessage] = useState<{ text: string; isError: boolean } | null>(null)
@@ -82,36 +77,19 @@ export function PracticeForm({ practiceId }: { practiceId?: number }) {
         load()
     }, [practiceId])
 
-    // 選んだ GPX を、消す範囲に合わせて処理し直す
-    const processed = useMemo<{ route: ProcessedRoute | null; error: string }>(() => {
-        if (!gpxPoints) return { route: null, error: "" }
-        try { return { route: processRoute(gpxPoints, trimM), error: "" } }
-        catch (e) { return { route: null, error: e instanceof Error ? e.message : String(e) } }
-    }, [gpxPoints, trimM])
-
-    const handleFile = async (file: File | undefined) => {
-        setGpxError("")
-        setGpxPoints(null)
-        setGpxName("")
-        if (!file) return
-        if (file.size > MAX_GPX_BYTES) { setGpxError("GPX ファイルは 10MB までです"); return }
-        try {
-            const points = parseGpx(await file.text())
-            setGpxPoints(points)
-            setGpxName(file.name)
-            setDirty(true)
-            // 距離が空欄なら GPX の距離を入れる
-            const route = processRoute(points, 0)
-            setDistanceStr(prev => prev.trim() === "" ? String(route.distanceKm) : prev)
-        } catch (e) {
-            setGpxError(e instanceof Error ? e.message : String(e))
-        }
+    const handleGpx = (next: GpxSelection) => {
+        setGpx(next)
+        if (!next.hasFile) return
+        setDirty(true)
+        // 距離が空欄なら GPX の距離を入れる
+        const km = next.route?.distanceKm
+        if (km != null) setDistanceStr(prev => prev.trim() === "" ? String(km) : prev)
     }
 
     // 練習録を保存した後に、ルートを置き換える・消す。失敗したらメッセージを返す
     const saveRoute = async (id: number): Promise<string | null> => {
         const supabase = createClient()
-        const route = processed.route
+        const route = gpx.route
         if (route) {
             const path = `${id}/route.gpx`
             const { error: upError } = await supabase.storage.from(ROUTE_BUCKET).upload(
@@ -153,7 +131,7 @@ export function PracticeForm({ practiceId }: { practiceId?: number }) {
         if (!heldOn) { setMessage({ text: "日付を入力してください", isError: true }); return }
         if (distance === undefined) { setMessage({ text: "距離は km の数値で入力してください（例: 15.5）", isError: true }); return }
         if (participants.size === 0) { setMessage({ text: "参加メンバーを1人以上選んでください", isError: true }); return }
-        if (gpxPoints && !processed.route) { setMessage({ text: processed.error, isError: true }); return }
+        if (gpx.hasFile && !gpx.route) { setMessage({ text: gpx.error, isError: true }); return }
         setSaving(true)
         const { data, error } = await createClient().rpc("save_practice", {
             p_id: practiceId ?? null,
@@ -215,7 +193,7 @@ export function PracticeForm({ practiceId }: { practiceId?: number }) {
 
                 <section className="flex flex-col gap-2">
                     <span className="font-semibold">ルート（GPX） <span className="text-xs font-normal text-gray-500">（任意）</span></span>
-                    {savedRoute && !gpxPoints && (
+                    {savedRoute && !gpx.hasFile && (
                         <div className="flex flex-col gap-1">
                             {!removeRoute && <RouteMap line={savedRoute.line} className="h-64 w-full rounded border" />}
                             <label className="flex items-center gap-1 text-sm">
@@ -224,41 +202,15 @@ export function PracticeForm({ practiceId }: { practiceId?: number }) {
                             </label>
                         </div>
                     )}
-                    <div className="flex flex-wrap items-center gap-3 text-sm">
-                        <input type="file" accept=".gpx,application/gpx+xml" onChange={e => handleFile(e.target.files?.[0])} />
-                        {gpxPoints && (
-                            <label className="flex items-center gap-1">
-                                スタート・ゴールから
-                                <select value={trimM} onChange={e => { setTrimM(Number(e.target.value)); setDirty(true) }} className={inputClass}>
-                                    {TRIM_OPTIONS.map(m => <option key={m} value={m}>{m === 0 ? "消さない" : `${m}m`}</option>)}
-                                </select>
-                                以内を消す
-                            </label>
+                    <GpxPicker
+                        defaultTrimM={300}
+                        onChange={handleGpx}
+                        summaryExtra={route => distanceStr.trim() !== String(route.distanceKm) && (
+                            <button type="button" onClick={() => change(setDistanceStr)(String(route.distanceKm))} className="ml-2 text-blue-600 hover:underline">
+                                この距離を使う
+                            </button>
                         )}
-                    </div>
-                    {gpxError && <p className="text-sm text-red-600">{gpxError}</p>}
-                    {gpxPoints && processed.error && <p className="text-sm text-red-600">{processed.error}</p>}
-                    {processed.route && (
-                        <div className="flex flex-col gap-1">
-                            <p className="text-sm">
-                                {gpxName}: 距離 {formatKm(processed.route.distanceKm)}
-                                {processed.route.elevationGainM != null && `・累積標高 ${processed.route.elevationGainM}m`}
-                                {distanceStr.trim() !== String(processed.route.distanceKm) && (
-                                    <button type="button" onClick={() => change(setDistanceStr)(String(processed.route!.distanceKm))} className="ml-2 text-blue-600 hover:underline">
-                                        この距離を使う
-                                    </button>
-                                )}
-                            </p>
-                            <RouteMap line={processed.route.line} className="h-64 w-full rounded border" />
-                            <p className="text-xs text-gray-500">
-                                地図の線が保存される範囲です。自宅などが分からないよう、スタート・ゴール付近が消えていることを確かめてください。
-                                保存する GPX には位置と標高だけを入れ、時刻・心拍などは入れません。
-                            </p>
-                        </div>
-                    )}
-                    <p className="text-xs text-gray-500">
-                        GPX の書き出し方: Strava はアクティビティの「…」→「GPX をエクスポート」、Garmin Connect はアクティビティの歯車 →「GPX にエクスポート」。
-                    </p>
+                    />
                 </section>
 
                 <div className="flex flex-col gap-1">

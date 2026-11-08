@@ -83,3 +83,15 @@ input[type=number] {
 .leaflet-container img {
   max-width: none;
 }
+
+/* ルートの地図の km の印 */
+.route-km-marker {
+  background: #fff;
+  border: 1px solid #2563eb;
+  border-radius: 4px;
+  color: #1e3a8a;
+  font-size: 10px;
+  font-weight: bold;
+  line-height: 14px;
+  text-align: center;
+}
