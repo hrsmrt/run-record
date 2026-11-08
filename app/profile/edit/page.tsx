@@ -17,8 +17,11 @@ export default function ProfileEditPage() {
     const [profile, setProfile] = useState<Profile>({ name: "", display_name: "", gender: "", birth_year: 2000 })
     const [enrollmentStr, setEnrollmentStr] = useState("")
     const [loading, setLoading] = useState(true)
+    // ログイン後にプロフィールがなくて案内されてきたとき（?welcome=1）
+    const [welcome, setWelcome] = useState(false)
 
     useEffect(() => {
+        setWelcome(new URLSearchParams(window.location.search).get("welcome") === "1")
         const fetchProfile = async () => {
             const supabase = createClient()
             const { data: { user } } = await supabase.auth.getUser()
@@ -82,6 +85,11 @@ export default function ProfileEditPage() {
     return (
         <div className="max-w-xl mx-auto p-4">
             <h1 className="text-2xl font-bold mb-4">プロフィール編集</h1>
+            {welcome && (
+                <p className="mb-4 p-2 text-sm bg-blue-50 border border-blue-200 rounded">
+                    プロフィールがまだ登録されていません。表示名・性別・入学年度を入力してください。表示名は記録の一覧に表示されます（生年は公開されません）。
+                </p>
+            )}
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                 <label>
                     名前:

@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { hasEnvVars } from "../utils";
 import { VIEWER_ROLE } from "../viewer";
+import { MUST_CHANGE_PASSWORD } from "../accounts";
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -55,6 +56,15 @@ export async function updateSession(request: NextRequest) {
   if (!isPublic && !user) {
     const url = request.nextUrl.clone();
     url.pathname = "/auth/login";
+    return NextResponse.redirect(url);
+  }
+
+  // 管理者が作成・再発行した初期パスワードのままなら、変更するまでパスワード変更画面から出さない
+  // （/auth/* はログイン・ログアウト・2段階認証のため通す）
+  if (user?.app_metadata?.[MUST_CHANGE_PASSWORD] === true && !isPublic) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/auth/update-password";
+    url.search = "?first=1";
     return NextResponse.redirect(url);
   }
 

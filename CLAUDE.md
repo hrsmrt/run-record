@@ -28,7 +28,7 @@
 - `/event/edit-editions` - 開催日編集（admin のみ）
 - `/event/edit-races` - 種目編集（admin のみ。エントリー数・部門ごとのエントリー数もここ）
 - `/event/edit-results` - 記録一括登録（admin のみ。1レースに複数人、アカウントのない人の追加も可）
-- `/event/edit-members` - メンバー編集（admin のみ。アカウントの有無を問わず入学年度を入力）
+- `/event/edit-members` - メンバー編集（admin のみ。アカウント作成・紐付け・パスワード再発行、入学年度の入力）
 - `/auth/mfa` - 2段階認証（TOTP）の登録・入力
 
 ## 設計メモ
@@ -36,7 +36,14 @@
 ### 認証・アクセス制御
 - **メンバー限定**: middleware（`lib/supabase/middleware.ts`）で全ページをログイン必須にし、DB 側でも `anon` の読み取りを禁止している（`sql/2026-11-03_members_only.sql`）。画面だけでなく API からも未ログインでは読めない
 - **閲覧用共有アカウント**: `viewer@runners-record.local`（`lib/viewer.ts`）、`app_metadata.role = "viewer"`。ログイン画面の「閲覧用パスワード」欄からパスワードのみでログインする。記録・プロフィール・大会編集・パスワード変更には入れず（middleware）、`results`・`result_splits`・`profiles` への書き込みは RESTRICTIVE ポリシーで禁止
-- **ユーザー登録**: ブラウザからの新規登録は廃止。管理者が Supabase ダッシュボード（Authentication → Users → Add user）で直接作成する。「Allow new users to sign up」はオフ
+- **ユーザー登録**: ブラウザからの新規登録は廃止（Supabase の「Allow new users to sign up」はオフ）。管理者がアプリの `/event/edit-members` で作成する
+  1. メールアドレスと表示名・性別・入学年度を入れて「作成」。「アカウントなし」で記録がある人は「〇〇を引き継ぐ」を選ぶと、名前などと記録をそのまま移す
+  2. 初期パスワードは自動で作り、作成直後に1回だけ表示される（保存しない）。本人にアプリの外（メール・LINE など）で伝える
+  3. 本人は初回ログインでパスワード変更を求められ（`app_metadata.must_change_password`、middleware で転送）、プロフィールがなければプロフィール入力に案内される（`lib/after-sign-in.ts`）
+  - パスワードを忘れた人は、同じページの「パスワード再発行」で新しい初期パスワードを出す（管理者・閲覧用アカウントは対象外）
+  - ダッシュボード（Authentication → Users → Add user、Auto Confirm User にチェック）で作ったアカウントにも、ログイン後のプロフィール案内は効く。アカウントなしの人の記録は「既存のアカウントに紐付け」で移す
+  - 作成・再発行はサーバー側（`app/event/edit-members/actions.ts`）で service_role キー（環境変数 `APP_SUPABASE_SECRET_KEY`、`NEXT_PUBLIC_` を付けない）を使う。クライアントは `lib/supabase/admin.ts`（`server-only`）。処理の最初に admin・aal2 を確認する
+  - 紐付けは `admin_link_account()`（記録の付け替え・プロフィール作成・アカウントなしの行の削除を1トランザクションで）
 - **admin 判定**: `app_metadata.role === "admin"`。編集ページはサーバー側で判定してリダイレクトするが、実際の書き込み制限は RLS（`sql/admin_policies.sql`）
 - **管理者の2段階認証**: 管理者の権限（大会情報の編集、他メンバーの記録・ラップ）は TOTP 認証済み（`aal2`）のときだけ。画面は `lib/admin.ts` の `getAdminState`（`adminActive`）と middleware、DB は各ポリシーの `auth.jwt() ->> 'aal' = 'aal2'`（`sql/2026-11-03_admin_require_mfa.sql`）
 - **検索エンジン対策**: `app/robots.ts`（全拒否）、`app/layout.tsx` の noindex メタタグ、`next.config.ts` の `X-Robots-Tag` ヘッダー
@@ -69,11 +76,21 @@
   - **ビューを作り直したら** `REVOKE ALL ON public_results FROM anon;` を再実行すること
 
 ### その他
-- **環境変数**: Supabase のキーは `NEXT_PUBLIC_SUPABASE_ANON_KEY` に統一
+- **環境変数**: Supabase のキーは `NEXT_PUBLIC_SUPABASE_ANON_KEY` に統一。アカウント作成用に `APP_SUPABASE_SECRET_KEY`（このアプリ専用の secret キー。サーバー側のみ。Vercel と `.env.local` に設定。Supabase 連携が入れる `SUPABASE_SERVICE_ROLE_KEY`・`SUPABASE_SECRET_KEY` とは別）
 - **DB定義**: `sql/` は `.gitignore` 対象（ローカルのみ）。定義を変えたら Supabase の SQL Editor で手動反映する。各ファイルに `_rollback.sql` を用意
 - **日時**: `races.entry_start_at` などは TIMESTAMPTZ。表示・入力はブラウザのタイムゾーンで変換する（ISO文字列を切り出すと9時間ずれる）
 
 ## 最近の作業履歴
+
+### 2026-11-08: 管理者によるアカウント作成
+
+#### DB
+- `2026-11-08_accounts.sql` - `admin_list_members()` を作り直し（プロフィールのないアカウント・メール・最終ログインを追加）、`admin_link_account()` を追加
+
+#### アプリ
+- メンバー編集ページでアカウント作成（アカウントなしの人の引き継ぎ可）・既存アカウントへの紐付け・パスワード再発行
+- 初回ログイン時のパスワード変更の強制、プロフィールがない人をプロフィール入力へ案内
+- 検索ページの「ベスト記録のみ」を全種目でも選べるように
 
 ### 2026-11-06: 出場大会記録、入学年度、OBOG 向けの文言
 

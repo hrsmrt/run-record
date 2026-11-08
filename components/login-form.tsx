@@ -13,6 +13,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
+import { pathAfterSignIn } from "@/lib/after-sign-in";
 import { useState } from "react";
 
 export function LoginForm({
@@ -43,7 +44,7 @@ export function LoginForm({
         window.location.assign("/auth/mfa");
         return;
       }
-      window.location.assign("/");
+      window.location.assign(await pathAfterSignIn(supabase));
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "";
       setError(

@@ -12,8 +12,10 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
+import { finishPasswordChange } from "@/app/auth/update-password/actions";
+import { WELCOME_PROFILE_PATH, hasOwnProfile } from "@/lib/after-sign-in";
 
 export function UpdatePasswordForm({
   className,
@@ -22,7 +24,8 @@ export function UpdatePasswordForm({
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const router = useRouter();
+  // 初期パスワードからの変更（middleware が ?first=1 を付けて転送してくる）
+  const first = useSearchParams().get("first") === "1";
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,7 +36,13 @@ export function UpdatePasswordForm({
     try {
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
-      router.push("/profile");
+      // 「初回変更が必要」の印を消し、印のないログイン情報に取り直す（middleware は手元のログイン情報を見るため）
+      const finished = await finishPasswordChange();
+      if (!finished.ok) throw new Error(finished.error);
+      const { data: { user } } = await supabase.auth.refreshSession();
+      // プロフィールがまだなければ入力へ案内する
+      const next = user && !(await hasOwnProfile(supabase, user.id)) ? WELCOME_PROFILE_PATH : "/profile";
+      window.location.assign(next);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "";
       setError(`パスワードの変更に失敗しました${message ? `（${message}）` : ""}`);
@@ -48,7 +57,9 @@ export function UpdatePasswordForm({
         <CardHeader>
           <CardTitle className="text-2xl">パスワードの変更</CardTitle>
           <CardDescription>
-            新しいパスワードを入力してください
+            {first
+              ? "管理者が発行した初期パスワードでログインしています。新しいパスワードを設定してください"
+              : "新しいパスワードを入力してください"}
           </CardDescription>
         </CardHeader>
         <CardContent>
