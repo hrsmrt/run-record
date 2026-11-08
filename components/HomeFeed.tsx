@@ -8,8 +8,15 @@ import { RaceGroup, RaceGroupRecords, RaceGroupTitle, fetchRaceGroups, formatDat
 import { EnrollmentTag } from "@/components/EnrollmentTag"
 import {
     PRACTICE_LIST_COLUMNS, type Practice, type PracticeParticipant,
-    compareParticipants, formatKm, practiceTitle,
+    compareParticipants, formatKm, isUpcoming, practiceTitle,
 } from "@/lib/practices"
+import { UpcomingPractices } from "@/components/UpcomingPractices"
+import { BoardThreadItem } from "@/components/BoardList"
+import { NewBadge } from "@/components/NewBadge"
+import type { BoardThread } from "@/lib/board"
+
+// 掲示板は最近動きがあった話題をいくつか出す
+const BOARD_COUNT = 5
 
 // 最初に表示する件数と、「さらに表示」で増やす件数
 const PAGE = 15
@@ -22,27 +29,35 @@ const Badge = ({ kind }: { kind: FeedItem["kind"] }) => kind === "race"
     ? <span className="text-xs px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-normal">大会</span>
     : <span className="text-xs px-1.5 py-0.5 rounded bg-green-100 text-green-700 font-normal">練習</span>
 
-// ホーム: 大会の記録と練習録を、日付の新しい順に混ぜて表示する
+// ホーム: 上に今後の練習予定と掲示板の最近の話題、その下に大会の記録と練習録を日付の新しい順に混ぜて表示する
 export function HomeFeed() {
     const [items, setItems] = useState<FeedItem[] | null>(null)
+    const [upcoming, setUpcoming] = useState<Practice[]>([])
+    const [threads, setThreads] = useState<BoardThread[]>([])
     const [shownCount, setShownCount] = useState(PAGE)
     const [error, setError] = useState("")
 
     useEffect(() => {
         const load = async () => {
             const supabase = createClient()
-            const [groups, practices, participants] = await Promise.all([
+            const [groups, practices, participants, { data: threadData }] = await Promise.all([
                 fetchRaceGroups(supabase),
                 fetchAll<Practice>((from, to) => supabase.from("public_practices").select(PRACTICE_LIST_COLUMNS)
                     .order("held_on", { ascending: false }).order("id", { ascending: false }).range(from, to)),
                 fetchAll<PracticeParticipant>((from, to) => supabase.from("public_practice_participants").select("*")
                     .order("practice_id").range(from, to)),
+                supabase.from("public_board_threads")
+                    .select("id, title, author_name, author_gender, author_enrollment_year, decided_practice_id, created_at, updated_at, post_count, has_poll, last_activity_at, is_mine, can_edit")
+                    .order("last_activity_at", { ascending: false }).limit(BOARD_COUNT),
             ])
+            // 予定（今日以降）は上にまとめ、日付の近い順にする
+            setUpcoming(practices.filter(isUpcoming).reverse())
+            setThreads((threadData ?? []) as BoardThread[])
             const byPractice = new Map<number, PracticeParticipant[]>()
             for (const p of participants) byPractice.set(p.practice_id, [...(byPractice.get(p.practice_id) ?? []), p])
             const merged: FeedItem[] = [
                 ...groups.map(g => ({ kind: "race" as const, date: g.date, key: `race-${g.key}`, group: g })),
-                ...practices.map(p => ({
+                ...practices.filter(p => !isUpcoming(p)).map(p => ({
                     kind: "practice" as const, date: p.held_on, key: `practice-${p.id}`, practice: p,
                     participants: (byPractice.get(p.id) ?? []).sort(compareParticipants),
                 })),
@@ -59,6 +74,25 @@ export function HomeFeed() {
 
     return (
         <div className="w-full max-w-4xl mx-auto flex flex-col gap-4 text-black">
+            <section className="flex flex-col gap-1">
+                <h2 className="font-bold flex items-center gap-3">
+                    今後の練習予定
+                    <Link href="/practices" className="text-xs font-normal text-blue-600 hover:underline">練習録へ</Link>
+                </h2>
+                <UpcomingPractices practices={upcoming} />
+            </section>
+            {threads.length > 0 && (
+                <section className="flex flex-col gap-1">
+                    <h2 className="font-bold flex items-center gap-3">
+                        掲示板
+                        <Link href="/board" className="text-xs font-normal text-blue-600 hover:underline">すべての話題</Link>
+                    </h2>
+                    <ul className="flex flex-col gap-1">
+                        {threads.map(t => <BoardThreadItem key={t.id} thread={t} />)}
+                    </ul>
+                </section>
+            )}
+            <h2 className="font-bold mt-2">最近の記録・練習</h2>
             {items.length === 0 && <p className="text-sm">まだ記録も練習録もありません。</p>}
             {items.slice(0, shownCount).map(item => item.kind === "race" ? (
                 <section key={item.key} className="bg-white p-2">
@@ -76,6 +110,7 @@ export function HomeFeed() {
                         <Badge kind="practice" />
                         <span>{formatDate(item.date)}</span>
                         <Link href={`/practices/${item.practice.id}`} className="text-blue-600 hover:underline">{practiceTitle(item.practice)}</Link>
+                        <NewBadge kind="practice" id={item.practice.id} at={item.practice.last_activity_at} />
                         {item.practice.distance_km != null && <span className="text-xs font-normal text-gray-500">{formatKm(item.practice.distance_km)}</span>}
                         {item.practice.has_route && <span className="text-xs font-normal px-1 rounded bg-green-50 text-green-700">ルート</span>}
                         {item.practice.comment_count > 0 && <span className="text-xs font-normal text-gray-500">コメント{item.practice.comment_count}件</span>}

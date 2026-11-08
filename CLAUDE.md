@@ -8,12 +8,15 @@
 
 ## ページ構成
 全ページログイン必須（`/auth/*` と `robots.txt` を除く）。「メンバーのみ」は閲覧用アカウントでは入れないページ。
-- `/` - ホーム（大会の記録と練習録を日付の新しい順に混ぜて表示、`components/HomeFeed.tsx`。各ページへはヘッダーのメニューから）
+- `/` - ホーム（今後の練習予定、掲示板の最近の話題、大会の記録と練習録を日付の新しい順に混ぜた一覧。`components/HomeFeed.tsx`。各ページへはヘッダーのメニューから）
 - `/latest` - 最近の記録（大会ごと。今年度の大会と直近20大会の多い方）
 - `/races` - 出場大会記録（大会ごとに新しい順。年度・大会名・メンバー名・種目・入学年度で絞り込み、条件は URL に保持）
-- `/practices` - 練習録（新しい順。年度・参加メンバー名で絞り込み）
+- `/practices` - 練習録（上に今後の予定、下にこれまでの練習。年度・参加メンバー名で絞り込み）
 - `/practices/[id]` - 練習録の詳細（主催者・距離・累積標高・主催者コメント・ルートの地図と高低差・GPX ダウンロード・参加メンバー・コメント。コメントは参加メンバーのみ）
 - `/practices/new`・`/practices/[id]/edit` - 練習録の作成・編集（メンバーのみ。編集は作った人と管理者）
+- `/board` - 掲示板（話題を最後に動きがあった順）
+- `/board/new` - 話題を立てる（メンバーのみ。候補日を入れると日程調整）
+- `/board/[id]` - 話題（本文・日程調整の ○△× の表・返信）
 - `/search` - 検索ページ
 - `/links` - リンク集
 - `/profile` - プロフィール（メンバーのみ）
@@ -81,6 +84,15 @@
   - 取り込みはすべてブラウザ側（`lib/gpx.ts`）: 距離はハバーサインの合計、累積標高は道のり±25mで平均し3m以上の上りだけ数える。スタート・ゴールから指定 m 以内を消し（既定300m）、位置と標高だけの GPX にして保存（時刻・心拍は入れない）。距離・累積標高は消す前の全体で数える
   - 地図用の線 `route_line` は最大約600点に間引いた `[緯度, 経度, 標高, km]` の配列。一覧では取らない（`PRACTICE_LIST_COLUMNS`）
   - 地図は Leaflet + 地理院タイル（淡色・標準・写真、出典表示が必要）、`components/RouteMap.tsx`。高低差は `components/ElevationChart.tsx`。Tailwind の `img { max-width: 100% }` がタイルを崩すので `globals.css` で地図内だけ外している
+- **練習予定・参加ボタン・やりとり・掲示板・日程調整**（`sql/2026-11-08_practice_plans.sql`）
+  - 練習予定は「記録済みでなく、日付が今日以降」の `practices`（`isUpcoming`）。`start_time`・`meeting_place`・`rsvp_deadline` を追加し、`save_practice()` の引数も増やした
+  - `is_recorded`（`sql/2026-11-08_practice_recorded.sql`）: 練習録として登録済みか。過去の日付は必ず true、未来は false、当日は作る人が選ぶ（「今日」は日本時間）。予定は `finish_practice()`（「参加」の人を参加メンバーに入れて記録済みにする）で終える。当日でも記録済みなら「これまでの練習」に出す
+  - 参加ボタン `practice_rsvps`（yes / maybe / no とひとこと、練習×本人で1件）。練習の後、作った人・管理者が `apply_rsvps_to_participants()` で「参加」の人を参加メンバーに入れる
+  - 練習ごとのやりとり `practice_messages`（全メンバーが何件でも。参加メンバーの感想 `practice_comments` とは別）
+  - 掲示板 `board_threads`・`board_posts`、日程調整 `thread_date_options`（立てた人・管理者が付け外し）・`thread_date_votes`（ok / maybe / ng）。候補日から `/practices/new?date=&title=&thread=` で予定を作ると `decided_practice_id` に結び付く
+  - 書き込みは本人名義、削除は本人と管理者（`is_admin_active()`）。閲覧用アカウントは読むだけ（RESTRICTIVE ポリシー、公開ビュー `public_practice_rsvps`・`public_practice_messages`・`public_board_threads`・`public_board_posts`・`public_thread_date_options`・`public_thread_date_votes`）。○△× の表の行は `voter_key`（user_id と話題 ID の md5）でそろえ、user_id は出さない
+  - やりとりの一覧と書き込み欄は `components/MessageThread.tsx`（練習と掲示板で共通）
+  - 新着の表示は `lib/seen.ts`（最後に見た日時を localStorage に。初めて使った日時より前の動きは新着にしない）、`public_practices.last_activity_at`・`public_board_threads.last_activity_at` と比べる
 - **大会のコース**（`sql/2026-11-08_race_routes.sql`）
   - 種目ごとに1つ、メンバーが計測した GPX を `race_routes`（`races` とは別の表）と非公開バケット `race-routes`（`種目ID/route.gpx`）に保存
   - 未登録の種目への登録はその種目に自分の記録がある人と管理者（`race_route_can_edit()`、画面のボタン用に `race_route_editable()`）。差し替え・削除は登録した本人と管理者のみ（`race_route_can_replace()`、`sql/2026-11-08_race_routes_owner_only.sql`。ファイルの上書きも同じ条件）
@@ -110,6 +122,8 @@
 - `2026-11-08_practice_routes.sql` - GPX のファイル置き場と権限、`public_practices` に `route_line`・`route_path` を追加
 - `2026-11-08_race_routes.sql` - 大会のコース（`race_routes`、ファイル置き場、`public_race_routes`）
 - `2026-11-08_race_routes_owner_only.sql` - コースの差し替え・削除を登録した本人と管理者に限る
+- `2026-11-08_practice_plans.sql` - 練習予定の項目、参加ボタン、練習ごとのやりとり、掲示板、日程調整
+- `2026-11-08_practice_recorded.sql` - 練習が記録済みかどうか（`is_recorded`）、`finish_practice()`
 
 #### アプリ
 - メンバー編集ページでアカウント作成（アカウントなしの人の引き継ぎ可）・既存アカウントへの紐付け・パスワード再発行
@@ -119,7 +133,8 @@
 - 練習録のルート（GPX の取り込み、地理院地図、距離・累積標高の自動計算、スタート・ゴール付近の削除、高低差のグラフ）
 - ホームをリンクカードから「大会の記録と練習録の新しい順の一覧」に変更し、メニューに大会情報を追加
 - 練習録の地図の全画面表示、大会のコース（種目ごとの GPX、登録した人の名前、5kmごとの印）
-- 今後の候補: GPX の時刻からラップを自動で入れる（ラップ入力ページの補助。GPX は保存しない）
+- 練習予定と参加ボタン、練習ごとのやりとり、掲示板と日程調整、新着の表示
+- 今後の候補: GPX の時刻からラップを自動で入れる（ラップ入力ページの補助。GPX は保存しない）、新着のメール通知（メール配信サービスが必要）、最後に見た日時を DB に持たせて端末間でそろえる
 
 ### 2026-11-06: 出場大会記録、入学年度、OBOG 向けの文言
 
@@ -239,6 +254,6 @@
 
 #### 次回作業時のポイント
 - リンク集にリンクを追加する場合は、`app/links/page.tsx`の`links`配列を編集
-- ヘッダーメニューの順序: 最近の記録 → 出場大会記録 → 練習録 → 大会情報 → 検索 → リンク集 → [メンバー向けメニュー（閲覧用アカウントでは非表示）] → [admin のみ: 大会情報を編集]
+- ヘッダーメニューの順序: 最近の記録 → 出場大会記録 → 練習録 → 掲示板 → 大会情報 → 検索 → リンク集 → [メンバー向けメニュー（閲覧用アカウントでは非表示）] → [admin のみ: 大会情報を編集]
 - RecordTableのcomment欄でリンクを使う場合は、`[リンクテキスト](URL)`の形式で記述
 - コード変更後は `npm run lint` でeslintチェックを実施

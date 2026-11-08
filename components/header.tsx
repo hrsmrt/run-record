@@ -111,6 +111,15 @@ export function Header() {
                 </li>
                 <li>
                   <Link
+                    href="/board"
+                    className="block px-4 py-2 hover:bg-gray-200"
+                    onClick={() => setOpen(false)}
+                  >
+                    掲示板
+                  </Link>
+                </li>
+                <li>
+                  <Link
                     href="/event/schedule"
                     className="block px-4 py-2 hover:bg-gray-200"
                     onClick={() => setOpen(false)}

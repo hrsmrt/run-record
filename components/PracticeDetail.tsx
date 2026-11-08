@@ -9,10 +9,16 @@ import { formatDate } from "@/components/RaceGroups"
 import { useUnsavedWarning } from "@/lib/use-unsaved-warning"
 import { RouteMap } from "@/components/RouteMap"
 import { ElevationChart } from "@/components/ElevationChart"
+import { RsvpPanel } from "@/components/RsvpPanel"
+import { MessageThread } from "@/components/MessageThread"
+import { markSeen } from "@/lib/seen"
+import { VIEWER_ROLE } from "@/lib/viewer"
 import {
-    type Practice, type PracticeComment, type PracticeParticipant,
-    compareParticipants, formatKm, practiceTitle,
+    type Practice, type PracticeComment, type PracticeMessage, type PracticeParticipant, type PracticeRsvp,
+    compareParticipants, formatKm, formatStartTime, isUpcoming, practiceTitle, todayStr,
 } from "@/lib/practices"
+
+const MESSAGE_MAX = 2000
 
 const COMMENT_MAX = 5000
 
@@ -22,11 +28,17 @@ const formatLocalDate = (iso: string) => {
     return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`
 }
 
-// 練習録の詳細（基本情報・参加メンバー・コメント）。参加メンバーは自分のコメントを書ける
+// 練習録の詳細（基本情報・参加の回答・やりとり・参加メンバー・コメント）。
+// 予定（今日以降）は参加ボタン、終わった練習は参加メンバーのコメント（1人1件）を中心に出す
 export function PracticeDetail({ id }: { id: number }) {
     const [practice, setPractice] = useState<Practice | null | undefined>(undefined)
     const [participants, setParticipants] = useState<PracticeParticipant[]>([])
     const [comments, setComments] = useState<PracticeComment[]>([])
+    const [rsvps, setRsvps] = useState<PracticeRsvp[]>([])
+    const [messages, setMessages] = useState<PracticeMessage[]>([])
+    // 閲覧用アカウントは読むだけ。管理者（2段階認証済み）は他人の書き込みも消せる
+    const [isMember, setIsMember] = useState(false)
+    const [isAdmin, setIsAdmin] = useState(false)
     const [draft, setDraft] = useState("")
     const [editing, setEditing] = useState(false)
     const [saving, setSaving] = useState(false)
@@ -37,17 +49,64 @@ export function PracticeDetail({ id }: { id: number }) {
 
     const load = useCallback(async () => {
         const supabase = createClient()
-        const [{ data: pr }, { data: pps }, { data: cs }] = await Promise.all([
+        const [{ data: pr }, { data: pps }, { data: cs }, { data: rs }, { data: ms }, { data: claims }] = await Promise.all([
             supabase.from("public_practices").select("*").eq("id", id).maybeSingle(),
             supabase.from("public_practice_participants").select("*").eq("practice_id", id),
             supabase.from("public_practice_comments").select("*").eq("practice_id", id).order("created_at"),
+            supabase.from("public_practice_rsvps").select("*").eq("practice_id", id).order("updated_at"),
+            supabase.from("public_practice_messages").select("*").eq("practice_id", id).order("created_at"),
+            supabase.auth.getClaims(),
         ])
         setPractice((pr as Practice | null) ?? null)
         setParticipants(((pps ?? []) as PracticeParticipant[]).sort(compareParticipants))
         setComments((cs ?? []) as PracticeComment[])
+        setRsvps((rs ?? []) as PracticeRsvp[])
+        setMessages((ms ?? []) as PracticeMessage[])
+        const c = claims?.claims
+        setIsMember(!!c && c.app_metadata?.role !== VIEWER_ROLE)
+        setIsAdmin(c?.app_metadata?.role === "admin" && c?.aal === "aal2")
     }, [id])
 
-    useEffect(() => { load() }, [load])
+    // 開いたら新着の印を消す（読み込み後にもう一度。自分の書き込みで新着にならないように）
+    useEffect(() => { load().then(() => markSeen("practice", id)) }, [load, id])
+    const reload = () => load().then(() => markSeen("practice", id))
+
+    const postMessage = async (body: string) => {
+        const { error } = await createClient().from("practice_messages").insert({ practice_id: id, body })
+        if (error) return `書き込みに失敗しました: ${error.message}`
+        await reload()
+        return null
+    }
+    const updateMessage = async (messageId: number, body: string) => {
+        const { error } = await createClient().from("practice_messages").update({ body, updated_at: new Date().toISOString() }).eq("id", messageId)
+        if (error) return `保存に失敗しました: ${error.message}`
+        await reload()
+        return null
+    }
+    const deleteMessage = async (messageId: number) => {
+        const { error } = await createClient().from("practice_messages").delete().eq("id", messageId)
+        if (error) return `削除に失敗しました: ${error.message}`
+        await reload()
+        return null
+    }
+
+    // 予定を終えて練習録にする（「参加」の人を参加メンバーに入れ、記録済みにする。作った人・管理者）
+    const finishPractice = async () => {
+        if (!confirm("練習を終了して練習録にしますか？ 「参加」と答えた人は参加メンバーに追加されます。")) return
+        const { data, error } = await createClient().rpc("finish_practice", { p_practice_id: id })
+        if (error) { setMessage({ text: `登録に失敗しました: ${error.message}`, isError: true }); return }
+        setMessage({ text: `練習録にしました（参加メンバーに${data ?? 0}人を追加）。感想コメントや GPX を追加できます`, isError: false })
+        reload()
+    }
+
+    // 記録済みの練習で、あとから「参加」と答えた人を参加メンバーに入れる（作った人・管理者）
+    const applyRsvps = async () => {
+        if (!confirm("「参加」と答えた人を参加メンバーに追加しますか？（すでに参加メンバーの人はそのまま）")) return
+        const { data, error } = await createClient().rpc("apply_rsvps_to_participants", { p_practice_id: id })
+        if (error) { setMessage({ text: `追加に失敗しました: ${error.message}`, isError: true }); return }
+        setMessage({ text: `${data ?? 0}人を参加メンバーに追加しました`, isError: false })
+        reload()
+    }
 
     // 一時的な署名付き URL でダウンロードする（ファイル置き場は非公開のため）
     const handleDownload = async () => {
@@ -87,6 +146,7 @@ export function PracticeDetail({ id }: { id: number }) {
 
     if (practice === undefined) return <p className="p-4">読み込み中...</p>
     if (practice === null) return <p className="p-4">練習録が見つかりませんでした。</p>
+    const upcoming = isUpcoming(practice)
 
     return (
         <div className="max-w-4xl mx-auto p-4 text-black flex flex-col gap-4">
@@ -102,6 +162,18 @@ export function PracticeDetail({ id }: { id: number }) {
             </div>
 
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 bg-white p-3 text-sm">
+                {(practice.start_time || practice.meeting_place) && (
+                    <>
+                        <dt className="font-semibold">集合</dt>
+                        <dd>{[formatStartTime(practice.start_time), practice.meeting_place].filter(Boolean).join("　")}</dd>
+                    </>
+                )}
+                {practice.rsvp_deadline && upcoming && (
+                    <>
+                        <dt className="font-semibold">参加の締切</dt>
+                        <dd>{formatDate(practice.rsvp_deadline)}</dd>
+                    </>
+                )}
                 <dt className="font-semibold">主催者</dt>
                 <dd className={practice.organizer_gender === "female" ? "text-red-600" : ""}>
                     {practice.organizer_name ?? "—"}<EnrollmentTag year={practice.organizer_enrollment_year} />
@@ -137,6 +209,41 @@ export function PracticeDetail({ id }: { id: number }) {
                 </section>
             )}
 
+            {(upcoming || !practice.is_recorded || rsvps.length > 0) && (
+                <section>
+                    <div className="flex flex-wrap items-center gap-3 mb-1">
+                        <h2 className="font-bold">参加の回答</h2>
+                        {practice.can_edit && !practice.is_recorded && practice.held_on <= todayStr() && (
+                            <button onClick={finishPractice} className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm">練習を終了して練習録にする</button>
+                        )}
+                        {practice.can_edit && practice.is_recorded && rsvps.some(r => r.status === "yes") && (
+                            <button onClick={applyRsvps} className="text-sm text-blue-600 hover:underline">「参加」の人を参加メンバーにする</button>
+                        )}
+                    </div>
+                    <RsvpPanel
+                        practiceId={id}
+                        rsvps={rsvps}
+                        canAnswer={isMember && upcoming}
+                        closed={!!practice.rsvp_deadline && practice.rsvp_deadline < todayStr()}
+                        onChanged={reload}
+                    />
+                </section>
+            )}
+
+            <section>
+                <h2 className="font-bold mb-1">やりとり{messages.length > 0 && `（${messages.length}件）`}</h2>
+                <MessageThread
+                    messages={messages}
+                    canPost={isMember}
+                    maxLength={MESSAGE_MAX}
+                    placeholder="集合場所・ペースの相談、質問など（メンバーなら誰でも書けます）"
+                    onPost={postMessage}
+                    onUpdate={updateMessage}
+                    onDelete={deleteMessage}
+                    canDeleteAny={isAdmin}
+                />
+            </section>
+
             <section>
                 <h2 className="font-bold mb-1">参加メンバー</h2>
                 <ul className="flex flex-wrap gap-x-4 gap-y-1 bg-white p-3 text-sm">
@@ -149,9 +256,11 @@ export function PracticeDetail({ id }: { id: number }) {
                 </ul>
             </section>
 
-            <section>
+            {message && (upcoming || !practice.is_recorded) && <p className={`text-sm ${message.isError ? "text-red-600" : "text-green-700"}`}>{message.text}</p>}
+            {/* 参加メンバーのコメントは練習の後に書くもの。予定のうちは、書かれていれば表示する */}
+            {(!upcoming || comments.length > 0) && <section>
                 <div className="flex items-center gap-3 mb-1">
-                    <h2 className="font-bold">コメント{comments.length > 0 && `（${comments.length}件）`}</h2>
+                    <h2 className="font-bold">参加メンバーのコメント{comments.length > 0 && `（${comments.length}件）`}</h2>
                     {practice.am_participant && !editing && (
                         <button onClick={startEdit} className="text-sm text-blue-600 hover:underline">
                             {mine ? "自分のコメントを編集" : "コメントを書く"}
@@ -194,7 +303,7 @@ export function PracticeDetail({ id }: { id: number }) {
                         </article>
                     ))}
                 </div>
-            </section>
+            </section>}
         </div>
     )
 }
