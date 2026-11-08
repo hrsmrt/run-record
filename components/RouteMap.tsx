@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import "leaflet/dist/leaflet.css"
 import type { RoutePoint } from "@/lib/gpx"
 
@@ -12,18 +12,22 @@ const GSI_LAYERS = [
     { name: "写真", url: "https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg", maxNativeZoom: 18 },
 ]
 
-// ルートを地理院地図の上に線で表示する。スタートは緑、ゴールは赤の丸
+// ルートを地理院地図の上に線で表示する。スタートは緑、ゴールは赤の丸。
+// 全画面は画面いっぱいに重ねる形（iPhone の Safari は要素の全画面表示に対応していないため）
 export function RouteMap({ line, className }: { line: RoutePoint[]; className?: string }) {
     const container = useRef<HTMLDivElement>(null)
+    const mapRef = useRef<import("leaflet").Map | null>(null)
+    const boundsRef = useRef<import("leaflet").LatLngBounds | null>(null)
+    const [fullscreen, setFullscreen] = useState(false)
 
     useEffect(() => {
         if (!container.current || line.length < 2) return
         let cancelled = false
-        let map: import("leaflet").Map | null = null
         // Leaflet はブラウザの window を使うため、画面側で読み込む
         import("leaflet").then(L => {
             if (cancelled || !container.current) return
-            map = L.map(container.current, { scrollWheelZoom: false })
+            const map = L.map(container.current, { scrollWheelZoom: false })
+            mapRef.current = map
             const layers = GSI_LAYERS.map(l => L.tileLayer(l.url, { attribution: GSI_ATTRIBUTION, maxNativeZoom: l.maxNativeZoom, maxZoom: 19 }))
             layers[0].addTo(map)
             L.control.layers(Object.fromEntries(GSI_LAYERS.map((l, i) => [l.name, layers[i]]))).addTo(map)
@@ -31,13 +35,53 @@ export function RouteMap({ line, className }: { line: RoutePoint[]; className?: 
             const route = L.polyline(latlngs, { color: "#2563eb", weight: 4, opacity: 0.85 }).addTo(map)
             L.circleMarker(latlngs[0], { radius: 7, color: "#fff", weight: 2, fillColor: "#16a34a", fillOpacity: 1 }).bindTooltip("スタート").addTo(map)
             L.circleMarker(latlngs[latlngs.length - 1], { radius: 7, color: "#fff", weight: 2, fillColor: "#dc2626", fillOpacity: 1 }).bindTooltip("ゴール").addTo(map)
-            map.fitBounds(route.getBounds(), { padding: [20, 20] })
+            boundsRef.current = route.getBounds()
+            map.fitBounds(boundsRef.current, { padding: [20, 20] })
         })
         return () => {
             cancelled = true
-            map?.remove()
+            mapRef.current?.remove()
+            mapRef.current = null
         }
     }, [line])
 
-    return <div ref={container} className={className ?? "h-80 w-full rounded border"} role="img" aria-label="ルートの地図" />
+    // 全画面の切り替え: 地図の大きさを測り直してルート全体を表示し、全画面中はホイールで拡大縮小できるようにする
+    useEffect(() => {
+        const map = mapRef.current
+        if (map) {
+            map.invalidateSize()
+            if (boundsRef.current) map.fitBounds(boundsRef.current, { padding: [20, 20] })
+            if (fullscreen) map.scrollWheelZoom.enable()
+            else map.scrollWheelZoom.disable()
+        }
+        if (!fullscreen) return
+        // 後ろのページがスクロールしないようにし、Esc で閉じる
+        const prevOverflow = document.body.style.overflow
+        document.body.style.overflow = "hidden"
+        const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setFullscreen(false) }
+        window.addEventListener("keydown", onKey)
+        return () => {
+            document.body.style.overflow = prevOverflow
+            window.removeEventListener("keydown", onKey)
+        }
+    }, [fullscreen])
+
+    return (
+        <div
+            className={fullscreen ? "fixed inset-0 z-[2000] bg-white" : `relative ${className ?? "h-80 w-full rounded border"}`}
+            role={fullscreen ? "dialog" : undefined}
+            aria-modal={fullscreen || undefined}
+            aria-label={fullscreen ? "ルートの地図（全画面）" : undefined}
+        >
+            <div ref={container} className="h-full w-full" role="img" aria-label="ルートの地図" />
+            <button
+                type="button"
+                onClick={() => setFullscreen(f => !f)}
+                className="absolute z-[1000] left-[10px] bottom-[10px] px-2 py-1 text-xs bg-white border-2 border-black/20 rounded shadow-sm hover:bg-gray-100"
+                style={fullscreen ? { bottom: "calc(10px + env(safe-area-inset-bottom, 0px))" } : undefined}
+            >
+                {fullscreen ? "全画面を閉じる" : "全画面で見る"}
+            </button>
+        </div>
+    )
 }
