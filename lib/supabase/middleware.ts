@@ -75,6 +75,8 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/profile") ||
     pathname.startsWith("/event/edit") ||
     pathname.startsWith("/reports/edit") ||
+    pathname === "/practices/new" ||
+    /^\/practices\/\d+\/edit/.test(pathname) ||
     pathname.startsWith("/auth/mfa") ||
     pathname.startsWith("/auth/update-password");
   if (isViewer && viewerBlocked) {

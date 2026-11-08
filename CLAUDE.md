@@ -11,6 +11,9 @@
 - `/` - ホームページ（各ページへのリンクカード表示）
 - `/latest` - 最近の記録（大会ごと。今年度の大会と直近20大会の多い方）
 - `/races` - 出場大会記録（大会ごとに新しい順。年度・大会名・メンバー名・種目・入学年度で絞り込み、条件は URL に保持）
+- `/practices` - 練習録（新しい順。年度・参加メンバー名で絞り込み）
+- `/practices/[id]` - 練習録の詳細（主催者・距離・主催者コメント・参加メンバー・コメント。コメントは参加メンバーのみ）
+- `/practices/new`・`/practices/[id]/edit` - 練習録の作成・編集（メンバーのみ。編集は作った人と管理者）
 - `/search` - 検索ページ
 - `/links` - リンク集
 - `/profile` - プロフィール（メンバーのみ）
@@ -67,6 +70,12 @@
   - `profiles.enrollment_year`・`profiles_pending.enrollment_year`（SMALLINT）。`public_results.enrollment_year` は2つの表を直接結合して取る（`profiles_all` の定義は手元にないため変更していない）
   - 記録の表では名前の横に下二桁（例:（17））。プロフィール・絞り込み・メンバー編集では「〜年目」（今年度 − 入学年度 + 1、年度は4月始まり）。`lib/enrollment.ts`・`components/EnrollmentTag.tsx`
   - 管理者の一覧取得・変更は所有者権限の関数 `admin_list_members()`・`admin_set_enrollment_year()`（関数内で admin・aal2 を確認）
+- **練習録**（`sql/2026-11-08_practices.sql`）
+  - `practices`（日付・タイトル・主催者・距離・主催者コメント（列名は `memo`）、GPX 用の `elevation_gain_m`・`route_path`・`route_line` は第2段階用）、`practice_participants`、`practice_comments`（練習×本人で1件）
+  - 参加者・主催者は `results` と同じく profiles_all の ID（アカウントなしの人も可）。`admin_link_account()` で記録と一緒に付け替える
+  - 保存は `save_practice()`（呼んだ人の権限で動き、参加メンバーの付け外しも1回で）。編集できるかは `practice_can_edit()`
+  - 参加メンバーの選択は `member_directory()`、その場での「アカウントなし」の追加は `add_pending_member()`（どちらもメンバーのみ、閲覧用は不可）
+  - 表示は `public_practices`・`public_practice_participants`・`public_practice_comments`（ID を出さない。閲覧用アカウントも読める）。名前の取得元は `member_names`（誰も直接読めない）
 - **大会レポート**: `race_reports`（開催回ごと、感想・観光の文章のみ、改行とリンク）、表示は `public_race_reports`
 - **公開ビュー**: `public_results` に一本化（旧 `public_record`・`public_full_best` など14個は削除済み）
   - `category`（5km / 10km / half / full / 100km / under100 / over100 / time）、`is_best`（利用者×区分のベスト。時間走は距離が長い方）、`has_splits`（ラップ有無）
@@ -82,15 +91,20 @@
 
 ## 最近の作業履歴
 
-### 2026-11-08: 管理者によるアカウント作成
+### 2026-11-08: 管理者によるアカウント作成、練習録
 
 #### DB
 - `2026-11-08_accounts.sql` - `admin_list_members()` を作り直し（プロフィールのないアカウント・メール・最終ログインを追加）、`admin_link_account()` を追加
+- `2026-11-08_practices.sql` - 練習録（表・公開ビュー・関数）、`admin_link_account()` に練習録の付け替えを追加
 
 #### アプリ
 - メンバー編集ページでアカウント作成（アカウントなしの人の引き継ぎ可）・既存アカウントへの紐付け・パスワード再発行
 - 初回ログイン時のパスワード変更の強制、プロフィールがない人をプロフィール入力へ案内
 - 検索ページの「ベスト記録のみ」を全種目でも選べるように
+- 練習録（第1段階: 日付・タイトル・主催者・参加メンバー・距離・主催者コメント・コメント）
+
+#### 今後の候補
+- 練習録の第2段階: GPX の取り込み（Supabase Storage の非公開バケット）、国土地理院の地図にルート表示、距離・累積標高の自動計算、スタート・ゴール付近の削除、高低差のグラフ
 
 ### 2026-11-06: 出場大会記録、入学年度、OBOG 向けの文言
 
