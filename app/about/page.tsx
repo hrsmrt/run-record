@@ -16,7 +16,7 @@ export default function AboutPage() {
             <section className={section}>
                 <p>
                     Runner&apos;s Record は、ホノルルマラソンを走る会（ホノマラ）の OBOG が、マラソンなどの大会の記録や練習を共有するための、メンバー限定のサイトです。
-                    管理人（村田）が個人で運営する<strong>非公式</strong>のサイトで、ホノルルマラソンを走る会の公式サイトではありません。営利目的ではありません。
+                    管理人の村田（2017年入学）が個人で運営する<strong>非公式</strong>のサイトで、ホノルルマラソンを走る会の公式サイトではありません。営利目的ではありません。
                 </p>
             </section>
 
