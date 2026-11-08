@@ -4,22 +4,9 @@ import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { VIEWER_ROLE } from "@/lib/viewer"
+import { fetchAll } from "@/lib/fetch-all"
 import { formatDate, fiscalYearOf } from "@/components/RaceGroups"
 import { PRACTICE_LIST_COLUMNS, type Practice, type PracticeParticipant, compareParticipants, formatKm, practiceTitle } from "@/lib/practices"
-
-// Supabase が1回に返す最大件数（これより多いときは続きを取得する）
-const PAGE_SIZE = 1000
-
-async function fetchAll<T>(build: (from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>) {
-    const rows: T[] = []
-    for (let from = 0; ; from += PAGE_SIZE) {
-        const { data, error } = await build(from, from + PAGE_SIZE - 1)
-        if (error) throw new Error(error.message)
-        rows.push(...(data ?? []) as T[])
-        if ((data ?? []).length < PAGE_SIZE) break
-    }
-    return rows
-}
 
 // 練習録の一覧（新しい順）。年度・参加メンバー名で絞り込む
 export function PracticeList() {
