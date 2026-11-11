@@ -127,7 +127,7 @@ export function DatePoll({ threadId, threadTitle, options, votes, canVote, canEd
                                         {canEdit && (
                                             <td className="px-2 py-1 text-xs">
                                                 <Link
-                                                    href={`/practices/new?date=${o.option_date}&title=${encodeURIComponent(threadTitle)}&thread=${threadId}`}
+                                                    href={`/practices/new?date=${o.option_date}&title=${encodeURIComponent(threadTitle)}&thread=${threadId}&option=${o.id}`}
                                                     className="text-blue-600 hover:underline mr-3"
                                                 >
                                                     この日で練習予定を作る

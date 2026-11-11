@@ -26,8 +26,10 @@ export type PlanSelection = { changed: boolean; route: ProcessedRoute | null; co
 type PastRoute = { id: number; held_on: string; title: string | null; has_route: boolean; has_plan_route: boolean }
 
 // 地図をクリックして点を置き、点を直線でつないでルート案を描く。点はドラッグで動かせる
-export function RoutePlanner({ initialLine, onChange }: {
+export function RoutePlanner({ initialLine, initialChanged = false, onChange }: {
     initialLine: RoutePoint[] | null
+    // 掲示板のルート案から始めるときなど、最初から「描き直した」扱いにして保存させる
+    initialChanged?: boolean
     onChange: (selection: PlanSelection) => void
 }) {
     const container = useRef<HTMLDivElement>(null)
@@ -36,7 +38,7 @@ export function RoutePlanner({ initialLine, onChange }: {
     const leafletRef = useRef<typeof import("leaflet") | null>(null)
     // 既存のルート案は、手で動かせる程度の点に減らしてから始める
     const [waypoints, setWaypoints] = useState<LatLon[]>(() => initialLine ? simplifyLine(initialLine) : [])
-    const [changed, setChanged] = useState(false)
+    const [changed, setChanged] = useState(initialChanged)
     const [route, setRoute] = useState<ProcessedRoute | null>(null)
     const [computing, setComputing] = useState(false)
     const [mapReady, setMapReady] = useState(false)

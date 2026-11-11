@@ -10,15 +10,17 @@ import { LinkifiedText } from "@/components/CommentText"
 import { EnrollmentTag } from "@/components/EnrollmentTag"
 import { MessageThread, formatDateTime } from "@/components/MessageThread"
 import { DatePoll } from "@/components/DatePoll"
-import { BOARD_TEXT_MAX, BOARD_THREAD_TITLE_MAX, type BoardPost, type BoardThread, type DateOption, type DateVote } from "@/lib/board"
+import { ThreadRoutes } from "@/components/ThreadRoutes"
+import { BOARD_TEXT_MAX, BOARD_THREAD_TITLE_MAX, THREAD_ROUTE_COLUMNS, type BoardPost, type BoardThread, type DateOption, type DateVote, type ThreadRoute } from "@/lib/board"
 
-// 掲示板の話題（本文・日程調整・返信）
+// 掲示板の話題（本文・日程調整・ルート案・返信）
 export function BoardThreadDetail({ id }: { id: number }) {
     const router = useRouter()
     const [thread, setThread] = useState<BoardThread | null | undefined>(undefined)
     const [posts, setPosts] = useState<BoardPost[]>([])
     const [options, setOptions] = useState<DateOption[]>([])
     const [votes, setVotes] = useState<DateVote[]>([])
+    const [routes, setRoutes] = useState<ThreadRoute[]>([])
     const [isMember, setIsMember] = useState(false)
     const [isAdmin, setIsAdmin] = useState(false)
     const [editing, setEditing] = useState(false)
@@ -28,17 +30,19 @@ export function BoardThreadDetail({ id }: { id: number }) {
 
     const load = useCallback(async () => {
         const supabase = createClient()
-        const [{ data: t }, { data: ps }, { data: os }, { data: vs }, { data: claims }] = await Promise.all([
+        const [{ data: t }, { data: ps }, { data: os }, { data: vs }, { data: rs }, { data: claims }] = await Promise.all([
             supabase.from("public_board_threads").select("*").eq("id", id).maybeSingle(),
             supabase.from("public_board_posts").select("*").eq("thread_id", id).order("created_at"),
             supabase.from("public_thread_date_options").select("*").eq("thread_id", id),
             supabase.from("public_thread_date_votes").select("*").eq("thread_id", id),
+            supabase.from("public_thread_routes").select(THREAD_ROUTE_COLUMNS).eq("thread_id", id).order("created_at"),
             supabase.auth.getClaims(),
         ])
         setThread((t as BoardThread | null) ?? null)
         setPosts((ps ?? []) as BoardPost[])
         setOptions((os ?? []) as DateOption[])
         setVotes((vs ?? []) as DateVote[])
+        setRoutes((rs ?? []) as ThreadRoute[])
         const c = claims?.claims
         setIsMember(!!c && c.app_metadata?.role !== VIEWER_ROLE)
         setIsAdmin(c?.app_metadata?.role === "admin" && c?.aal === "aal2")
@@ -67,7 +71,7 @@ export function BoardThreadDetail({ id }: { id: number }) {
     }
 
     const deleteThread = async () => {
-        if (!confirm("この話題を削除しますか？ 返信と日程調整もすべて消えます。")) return
+        if (!confirm("この話題を削除しますか？ 返信・日程調整・ルート案もすべて消えます。")) return
         const { error } = await createClient().from("board_threads").delete().eq("id", id)
         if (error) { setError(`削除に失敗しました: ${error.message}`); return }
         router.push("/board")
@@ -121,6 +125,20 @@ export function BoardThreadDetail({ id }: { id: number }) {
                         canVote={isMember}
                         canEdit={thread.can_edit}
                         decidedPracticeId={thread.decided_practice_id}
+                        onChanged={reload}
+                    />
+                </section>
+            )}
+
+            {(routes.length > 0 || isMember) && (
+                <section className="flex flex-col gap-1">
+                    <h2 className="font-bold">ルート案{routes.length > 0 && `（${routes.length}件）`}</h2>
+                    <ThreadRoutes
+                        threadId={id}
+                        threadTitle={thread.title}
+                        routes={routes}
+                        canAdd={isMember}
+                        canEditThread={thread.can_edit}
                         onChanged={reload}
                     />
                 </section>

@@ -17,7 +17,7 @@
 - `/practices/new`・`/practices/[id]/edit` - 練習録の作成・編集（メンバーのみ。編集は作った人と管理者）
 - `/board` - 掲示板（話題を最後に動きがあった順）
 - `/board/new` - 話題を立てる（メンバーのみ。候補日を入れると日程調整）
-- `/board/[id]` - 話題（本文・日程調整の ○△× の表・返信）
+- `/board/[id]` - 話題（本文・日程調整の ○△× の表・ルート案・返信）
 - `/search` - 検索ページ
 - `/links` - リンク集
 - `/profile` - プロフィール（メンバーのみ）
@@ -118,6 +118,11 @@
   - 作成・編集画面で地図をクリックして点を置き、直線でつないで描く（`components/RoutePlanner.tsx`）。点はドラッグで移動、1つ戻す・周回・往復・過去の練習録のルートから始める（`simplifyLine` で点を減らす）
   - 標高は国土地理院の標高タイル dem_png（z14、10m メッシュ、CORS 許可あり）を canvas で読む（`lib/elevation.ts`）。点の間を25mごとに細かくして標高を付け、`processRoute()` で距離・累積標高・GPX・地図用の線を作る（`lib/route-plan.ts`）
   - `practices.plan_route_*`・`plan_distance_km`・`plan_elevation_gain_m`、GPX は `practice-routes` の `練習録ID/plan.gpx`（権限は実際のルートと同じ）。実際に走ったルートとは別に持ち、詳細ページでは両方を出す（ルート案は紫、1kmごとの印）
+- **掲示板のルート案と練習予定への引き継ぎ**（`sql/2026-11-11_thread_routes.sql`）
+  - `thread_routes`（話題ごとに何件でも。名前・ひとこと・`route_line`・距離・累積標高）。地図で描くか GPX を取り込む（`components/ThreadRoutes.tsx`、`RoutePlanner`・`GpxPicker` を共通で使う）。GPX ファイルは置かない
+  - 登録はメンバー全員、削除は登録した本人・話題を立てた人・管理者。表示は `public_thread_routes`、`public_board_threads.route_count`（一覧に「ルート案N件」）
+  - 練習予定の作成画面（`?thread=` 付き）でその話題のルート案を選ぶと、`RoutePlanner` を `key` で作り直して練習録のルート案（`plan_route_*`・`plan.gpx`）として保存する（`initialChanged`）。ルート案の「このルートで練習予定を作る」は `&route=` で最初から選ぶ
+  - 候補日から作るときは `&option=`。保存後に `import_thread_votes()`（所有者権限。練習録を編集できて話題を立てた人・管理者のみ）で ○ → 参加、△ → 検討中。記録済みなら ○ の人を参加メンバーに。自分で押している参加ボタンは上書きしない
 - **大会のコース**（`sql/2026-11-08_race_routes.sql`）
   - 種目ごとに1つ、メンバーが計測した GPX を `race_routes`（`races` とは別の表）と非公開バケット `race-routes`（`種目ID/route.gpx`）に保存
   - 未登録の種目への登録はその種目に自分の記録がある人と管理者（`race_route_can_edit()`、画面のボタン用に `race_route_editable()`）。差し替え・削除は登録した本人と管理者のみ（`race_route_can_replace()`、`sql/2026-11-08_race_routes_owner_only.sql`。ファイルの上書きも同じ条件）
@@ -138,6 +143,15 @@
 - **日時**: `races.entry_start_at` などは TIMESTAMPTZ。表示・入力はブラウザのタイムゾーンで変換する（ISO文字列を切り出すと9時間ずれる）
 
 ## 最近の作業履歴
+
+### 2026-11-11: 掲示板のルート案、日程調整からの引き継ぎ
+
+#### DB
+- `2026-11-11_thread_routes.sql` - 話題のルート案 `thread_routes`・`public_thread_routes`、`import_thread_votes()`、`public_board_threads.route_count`
+
+#### アプリ
+- 掲示板の話題にルート案（地図で描く・GPX）を複数登録
+- 練習予定の作成で、話題のルート案を選んで練習録のルート案にする。候補日の ○△× を参加ボタンに写す
 
 ### 2026-11-08: 管理者によるアカウント作成、練習録
 

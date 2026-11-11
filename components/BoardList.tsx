@@ -57,6 +57,7 @@ export function BoardThreadItem({ thread: t }: { thread: BoardThread }) {
                     {t.decided_practice_id ? "日程決定" : "日程調整中"}
                 </span>
             )}
+            {t.route_count > 0 && <span className="text-xs px-1 rounded bg-purple-100 text-purple-800">ルート案{t.route_count}件</span>}
             <span className="text-xs text-gray-600">{t.author_name ?? "（退会したメンバー）"}</span>
             <span className="text-xs text-gray-500">返信{t.post_count}件・最終 {formatDateTime(t.last_activity_at)}</span>
             {t.last_post_excerpt && (

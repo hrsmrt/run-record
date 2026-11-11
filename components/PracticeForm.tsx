@@ -6,16 +6,19 @@ import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { useUnsavedWarning } from "@/lib/use-unsaved-warning"
 import { MemberPicker } from "@/components/MemberPicker"
-import { type DirectoryMember, parseKm, todayStr } from "@/lib/practices"
+import { type DirectoryMember, formatKm, parseKm, todayStr } from "@/lib/practices"
 import type { RoutePoint } from "@/lib/gpx"
 import { RouteMap } from "@/components/RouteMap"
 import { GpxPicker, type GpxSelection } from "@/components/GpxPicker"
 import { RoutePlanner, type PlanSelection } from "@/components/RoutePlanner"
+import { THREAD_ROUTE_COLUMNS, type ThreadRoute } from "@/lib/board"
 
 const ROUTE_BUCKET = "practice-routes"
 
 const MEMO_MAX = 2000
 
+// 掲示板のルート案（練習録のルート案に写すので線も取る）
+type ThreadRouteWithLine = ThreadRoute & { route_line: RoutePoint[] }
 
 // 練習録の新規作成・編集。practiceId がなければ新規
 export function PracticeForm({ practiceId }: { practiceId?: number }) {
@@ -35,6 +38,13 @@ export function PracticeForm({ practiceId }: { practiceId?: number }) {
     const [isRecorded, setIsRecorded] = useState(true)
     // 掲示板の日程調整から作るときの話題 ID（保存後に「決まった練習」として結び付ける）
     const [fromThreadId, setFromThreadId] = useState<number | null>(null)
+    // 日程調整の候補日（?option=）。○△× を参加ボタンに写すかと、その人数
+    const [fromOptionId, setFromOptionId] = useState<number | null>(null)
+    const [voteCounts, setVoteCounts] = useState({ ok: 0, maybe: 0 })
+    const [importVotes, setImportVotes] = useState(true)
+    // 話題のルート案（ルート案の欄で選べる）。選んだら RoutePlanner を作り直して、その線から始める
+    const [threadRoutes, setThreadRoutes] = useState<ThreadRouteWithLine[]>([])
+    const [planSeed, setPlanSeed] = useState<{ key: number; line: RoutePoint[] | null; routeId: number | null }>({ key: 0, line: null, routeId: null })
     const [participants, setParticipants] = useState<Set<string>>(new Set())
     // 登録済みのルート
     const [savedRoute, setSavedRoute] = useState<{ path: string; line: RoutePoint[] } | null>(null)
@@ -62,14 +72,31 @@ export function PracticeForm({ practiceId }: { practiceId?: number }) {
                 // 新規は自分を主催者・参加メンバーにしておく
                 const me = list.find(m => m.is_me)
                 if (me) { setOrganizerId(me.user_id); setParticipants(new Set([me.user_id])) }
-                // 日程調整から来たときは、日付・タイトルを入れておく（?date=&title=&thread=）
+                // 掲示板から来たときは、日付・タイトルを入れておく（?date=&title=&thread=&option=&route=）
                 const q = new URLSearchParams(window.location.search)
                 const date = q.get("date")
                 if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) setHeldOn(date)
                 const t = q.get("title")
                 if (t) setTitle(t.slice(0, 100))
+                const isId = (n: number) => Number.isInteger(n) && n > 0
                 const thread = Number(q.get("thread"))
-                if (Number.isInteger(thread) && thread > 0) setFromThreadId(thread)
+                if (isId(thread)) {
+                    setFromThreadId(thread)
+                    const { data: rs } = await supabase.from("public_thread_routes")
+                        .select(`${THREAD_ROUTE_COLUMNS}, route_line`).eq("thread_id", thread).order("created_at")
+                    const list = (rs ?? []) as ThreadRouteWithLine[]
+                    setThreadRoutes(list)
+                    const picked = list.find(r => r.id === Number(q.get("route")))
+                    if (picked) setPlanSeed({ key: 1, line: picked.route_line, routeId: picked.id })
+                    const option = Number(q.get("option"))
+                    if (isId(option)) {
+                        const { data: vs } = await supabase.from("public_thread_date_votes").select("vote").eq("option_id", option).eq("thread_id", thread)
+                        if (vs && vs.length > 0) {
+                            setFromOptionId(option)
+                            setVoteCounts({ ok: vs.filter(v => v.vote === "ok").length, maybe: vs.filter(v => v.vote === "maybe").length })
+                        }
+                    }
+                }
                 setStatus("ok")
                 return
             }
@@ -162,6 +189,14 @@ export function PracticeForm({ practiceId }: { practiceId?: number }) {
         return null
     }
 
+    // 掲示板のルート案を、練習録のルート案として入れる（描いてあるものは置き換える）
+    const pickThreadRoute = (r: ThreadRouteWithLine) => {
+        if (planSeed.routeId === r.id) return
+        if (plan.route && !confirm(`今のルート案を「${r.name}」に置き換えますか？`)) return
+        setPlanSeed(prev => ({ key: prev.key + 1, line: r.route_line, routeId: r.id }))
+        setDirty(true)
+    }
+
     // 主催者は選んだ参加メンバーから選ぶ
     const organizerOptions = useMemo(() => members.filter(m => participants.has(m.user_id)), [members, participants])
 
@@ -200,13 +235,21 @@ export function PracticeForm({ practiceId }: { practiceId?: number }) {
         if (error) { setSaving(false); setMessage({ text: `保存に失敗しました: ${error.message}`, isError: true }); return }
         const routeError = [await saveRoute(data as number), await savePlan(data as number)].filter(Boolean).join(" / ")
         // 日程調整の話題に、決まった練習として結び付ける（話題を立てた人・管理者のときだけ反映される）
+        let voteError = ""
         if (fromThreadId != null && practiceId == null) {
-            await createClient().from("board_threads").update({ decided_practice_id: data }).eq("id", fromThreadId)
+            const supabase = createClient()
+            await supabase.from("board_threads").update({ decided_practice_id: data }).eq("id", fromThreadId)
+            // ○△× を参加ボタンに写す（練習録として登録したときは ○ の人を参加メンバーに）
+            if (fromOptionId != null && importVotes) {
+                const { error } = await supabase.rpc("import_thread_votes", { p_practice_id: data, p_option_id: fromOptionId })
+                if (error) voteError = error.message
+            }
         }
         setSaving(false)
         setDirty(false)
-        // 練習録は保存できているので、ルートだけ失敗したときも詳細ページへ進む
+        // 練習録は保存できているので、ルートなどだけ失敗したときも詳細ページへ進む
         if (routeError) alert(`練習録は保存しましたが、ルート・ルート案の保存に失敗しました（${routeError}）。編集画面からもう一度登録してください。`)
+        if (voteError) alert(`練習録は保存しましたが、日程調整の ○△× を写せませんでした（${voteError}）。`)
         router.push(`/practices/${data}`)
     }
 
@@ -287,8 +330,26 @@ export function PracticeForm({ practiceId }: { practiceId?: number }) {
 
                 <section className="flex flex-col gap-2">
                     <span className="font-semibold">ルート案 <span className="text-xs font-normal text-gray-500">（任意。地図で描く。予定のときに参加者へ共有できます）</span></span>
+                    {threadRoutes.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-2 text-sm">
+                            <span>掲示板のルート案から:</span>
+                            {threadRoutes.map(r => (
+                                <button
+                                    key={r.id}
+                                    type="button"
+                                    onClick={() => pickThreadRoute(r)}
+                                    aria-pressed={planSeed.routeId === r.id}
+                                    className={`px-2 py-1 border rounded text-xs ${planSeed.routeId === r.id ? "bg-purple-600 text-white border-purple-600" : "bg-white hover:bg-gray-100"}`}
+                                >
+                                    {r.name}{r.distance_km != null && `（${formatKm(r.distance_km)}）`}
+                                </button>
+                            ))}
+                        </div>
+                    )}
                     <RoutePlanner
-                        initialLine={savedPlan?.line ?? null}
+                        key={planSeed.key}
+                        initialLine={planSeed.line ?? savedPlan?.line ?? null}
+                        initialChanged={planSeed.line != null}
                         onChange={next => { setPlan(next); if (next.changed) setDirty(true) }}
                     />
                 </section>
@@ -314,6 +375,16 @@ export function PracticeForm({ practiceId }: { practiceId?: number }) {
                         )}
                     />
                 </section>
+
+                {fromOptionId != null && (
+                    <label className="flex items-start gap-1 text-sm">
+                        <input type="checkbox" checked={importVotes} onChange={e => setImportVotes(e.target.checked)} className="mt-1" />
+                        <span>
+                            日程調整の ○ の{voteCounts.ok}人を「参加」、△ の{voteCounts.maybe}人を「検討中」にする
+                            <span className="block text-xs text-gray-500">練習録（終わった練習）として登録するときは、○ の人を参加メンバーにします。自分で参加ボタンを押している人はそのままです。</span>
+                        </span>
+                    </label>
+                )}
 
                 <div className="flex flex-col gap-1">
                     <span className="font-semibold">参加メンバー</span>
