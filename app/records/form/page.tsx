@@ -34,6 +34,21 @@ export default function AddRecordForm() {
   const [adminNeedsMfa, setAdminNeedsMfa] = useState(false);
   const [targetUserId, setTargetUserId] = useState<string | null>(null);
 
+  // 大会予定の「記録を入れる」から来たとき（?race=種目ID）は、その種目を選んだ状態にする
+  useEffect(() => {
+    const id = Number(new URLSearchParams(window.location.search).get("race"));
+    if (!Number.isInteger(id) || id <= 0) return;
+    createClient().from("races").select("id, distance_km, event_editions(held_on, events(name, type))").eq("id", id).maybeSingle()
+      .then(({ data }) => {
+        if (!data) return;
+        const ed = data.event_editions as unknown as { held_on: string | null; events: { name: string; type: string } | null } | null;
+        setRaceId(data.id);
+        setDistance(String(Number(data.distance_km)));
+        if (ed?.held_on) setDate(ed.held_on);
+        if (ed?.events) setRaceName(ed.events.name);
+      });
+  }, []);
+
   useEffect(() => {
     getAdminState(createClient()).then(({ user, isAdmin, adminActive }) => {
       if (!user) return;

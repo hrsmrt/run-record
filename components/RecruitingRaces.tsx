@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client"
 import { VIEWER_ROLE } from "@/lib/viewer"
 import { formatDate } from "@/components/RaceGroups"
 import { RacePlanPanel } from "@/components/RacePlanPanel"
+import { EditionThreads, type EditionThread } from "@/components/EditionThreads"
 import { type RacePlan, entryDeadlineText } from "@/lib/race-plans"
 import { todayStr } from "@/lib/practices"
 
@@ -30,6 +31,7 @@ type Recruiting = {
 export function RecruitingRaces() {
     const [items, setItems] = useState<Recruiting[]>([])
     const [canEdit, setCanEdit] = useState(false)
+    const [threads, setThreads] = useState<EditionThread[]>([])
 
     const load = useCallback(async () => {
         const supabase = createClient()
@@ -41,7 +43,11 @@ export function RecruitingRaces() {
         const plans = (planData ?? []) as RacePlan[]
         const editionIds = [...new Set(plans.filter(p => p.recruiting).map(p => p.event_edition_id))]
         if (editionIds.length === 0) { setItems([]); return }
-        const { data: raceData } = await supabase.from("races").select("id, name, event_edition_id, entry_end_at").in("event_edition_id", editionIds)
+        const [{ data: raceData }, { data: threadData }] = await Promise.all([
+            supabase.from("races").select("id, name, event_edition_id, entry_end_at").in("event_edition_id", editionIds),
+            supabase.from("public_board_threads").select("id, title, edition_id").in("edition_id", editionIds).order("created_at"),
+        ])
+        setThreads((threadData ?? []) as EditionThread[])
         const races = (raceData ?? []) as EditionRace[]
         const now = Date.now()
         const list = editionIds.flatMap(id => {
@@ -80,6 +86,7 @@ export function RecruitingRaces() {
                                 {deadline && <span className="text-xs font-bold text-red-600">エントリー{deadline}</span>}
                             </div>
                             <RacePlanPanel editionId={it.editionId} races={it.races} plans={it.plans} canEdit={canEdit} compact onChanged={load} />
+                            <EditionThreads editionId={it.editionId} threads={threads.filter(t => t.edition_id === it.editionId)} canCreate={canEdit} />
                         </li>
                     )
                 })}

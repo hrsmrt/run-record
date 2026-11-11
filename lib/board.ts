@@ -23,11 +23,16 @@ export type BoardThread = {
     last_post_at: string | null
     // ルート案の件数
     route_count: number
+    // 結び付けた大会（開催回）。なければ null
+    edition_id: number | null
+    edition_event_id: number | null
+    edition_event_name: string | null
+    edition_held_on: string | null
 }
 
 // 一覧で取る列（本文は除く）
 export const BOARD_THREAD_COLUMNS =
-    "id, title, author_name, author_gender, author_enrollment_year, decided_practice_id, created_at, updated_at, post_count, has_poll, last_activity_at, is_mine, can_edit, last_post_excerpt, last_post_author_name, last_post_author_enrollment_year, last_post_at, route_count"
+    "id, title, author_name, author_gender, author_enrollment_year, decided_practice_id, created_at, updated_at, post_count, has_poll, last_activity_at, is_mine, can_edit, last_post_excerpt, last_post_author_name, last_post_author_enrollment_year, last_post_at, route_count, edition_id, edition_event_id, edition_event_name, edition_held_on"
 
 export type BoardPost = ThreadMessage & { thread_id: number }
 

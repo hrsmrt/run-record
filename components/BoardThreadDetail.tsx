@@ -10,6 +10,7 @@ import { LinkifiedText } from "@/components/CommentText"
 import { EnrollmentTag } from "@/components/EnrollmentTag"
 import { MessageThread, formatDateTime } from "@/components/MessageThread"
 import { DatePoll } from "@/components/DatePoll"
+import { formatDate } from "@/components/RaceGroups"
 import { ThreadRoutes } from "@/components/ThreadRoutes"
 import { BOARD_TEXT_MAX, BOARD_THREAD_TITLE_MAX, THREAD_ROUTE_COLUMNS, type BoardPost, type BoardThread, type DateOption, type DateVote, type ThreadRoute } from "@/lib/board"
 
@@ -109,6 +110,14 @@ export function BoardThreadDetail({ id }: { id: number }) {
                         </span>
                         ・{formatDateTime(thread.created_at)}
                     </p>
+                    {thread.edition_id != null && thread.edition_event_id != null && (
+                        <p className="text-sm">
+                            大会:{" "}
+                            <Link href={`/event/${thread.edition_event_id}#edition-${thread.edition_id}`} className="text-blue-600 hover:underline">
+                                {thread.edition_event_name}{thread.edition_held_on && `（${formatDate(thread.edition_held_on)}）`}
+                            </Link>
+                        </p>
+                    )}
                     {thread.body && <div className="text-sm"><LinkifiedText text={thread.body} /></div>}
                 </article>
             )}

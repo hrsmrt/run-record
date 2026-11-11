@@ -1,14 +1,18 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { useUnsavedWarning } from "@/lib/use-unsaved-warning"
 import { DateOptionsEditor, type DateOptionDraft } from "@/components/DateOptionsEditor"
 import { BOARD_TEXT_MAX, BOARD_THREAD_TITLE_MAX } from "@/lib/board"
+import { formatDate } from "@/components/RaceGroups"
 
-// 掲示板に話題を立てる。候補日を入れると日程調整（○△×）ができる
+type Edition = { id: number; held_on: string | null; event_id: number; event_name: string }
+
+// 掲示板に話題を立てる。候補日を入れると日程調整（○△×）ができる。
+// 大会の予定から来たとき（?edition=開催回ID）は、その大会に結び付けて立てる
 export function BoardThreadForm() {
     const router = useRouter()
     const [title, setTitle] = useState("")
@@ -16,6 +20,20 @@ export function BoardThreadForm() {
     const [options, setOptions] = useState<DateOptionDraft[]>([])
     const [saving, setSaving] = useState(false)
     const [error, setError] = useState("")
+    const [edition, setEdition] = useState<Edition | null>(null)
+
+    useEffect(() => {
+        const id = Number(new URLSearchParams(window.location.search).get("edition"))
+        if (!Number.isInteger(id) || id <= 0) return
+        createClient().from("event_editions").select("id, held_on, event_id, events(name)").eq("id", id).maybeSingle()
+            .then(({ data }) => {
+                if (!data) return
+                const ev = data.events as unknown as { name: string } | null
+                const ed = { id: data.id, held_on: data.held_on, event_id: data.event_id, event_name: ev?.name ?? "" }
+                setEdition(ed)
+                setTitle(prev => prev === "" ? `${ed.event_name}${ed.held_on ? `（${formatDate(ed.held_on)}）` : ""}`.slice(0, BOARD_THREAD_TITLE_MAX) : prev)
+            })
+    }, [])
 
     useUnsavedWarning(!saving && (title !== "" || body !== "" || options.length > 0))
 
@@ -28,7 +46,7 @@ export function BoardThreadForm() {
         setError("")
         const supabase = createClient()
         const { data, error } = await supabase.from("board_threads")
-            .insert({ title: title.trim(), body: body.trim() || null })
+            .insert({ title: title.trim(), body: body.trim() || null, edition_id: edition?.id ?? null })
             .select("id")
             .single()
         if (error) { setSaving(false); setError(`保存に失敗しました: ${error.message}`); return }
@@ -45,6 +63,16 @@ export function BoardThreadForm() {
         <div className="max-w-3xl mx-auto p-4 text-black flex flex-col gap-4">
             <Link href="/board" className="text-sm text-blue-600 hover:underline">← 掲示板</Link>
             <h1 className="text-2xl font-bold">話題を立てる</h1>
+            {edition && (
+                <p className="text-sm bg-white border rounded px-2 py-1">
+                    大会:{" "}
+                    <Link href={`/event/${edition.event_id}#edition-${edition.id}`} className="text-blue-600 hover:underline">
+                        {edition.event_name}{edition.held_on && `（${formatDate(edition.held_on)}）`}
+                    </Link>
+                    <span className="text-xs text-gray-500 ml-2">この話題は大会のページとホームの募集からもリンクされます</span>
+                    <button onClick={() => setEdition(null)} className="ml-2 text-xs text-gray-600 hover:underline">結び付けない</button>
+                </p>
+            )}
             <label className="flex flex-col gap-1">
                 <span className="font-semibold">タイトル</span>
                 <input value={title} maxLength={BOARD_THREAD_TITLE_MAX} onChange={e => setTitle(e.target.value)} placeholder="例: 12月の30km走の日程" className="border rounded px-2 py-1 bg-white" />

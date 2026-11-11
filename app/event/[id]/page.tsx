@@ -13,6 +13,7 @@ import { VIEWER_ROLE } from "@/lib/viewer"
 import { RACE_ROUTE_COLUMNS, RaceRoutes, type RaceRouteInfo } from "@/components/RaceRoutes"
 import { EditionOrganizers, type EditionOrganizer } from "@/components/EditionOrganizers"
 import { RacePlanPanel } from "@/components/RacePlanPanel"
+import { EditionThreads, type EditionThread } from "@/components/EditionThreads"
 import type { RacePlan } from "@/lib/race-plans"
 import { todayStr } from "@/lib/practices"
 
@@ -97,6 +98,8 @@ export default function EventDetailPage() {
     // 開催回ごとのメンバーの予定（これからの開催回だけ出す）
     const [plans, setPlans] = useState<RacePlan[]>([])
     const [planReload, setPlanReload] = useState(0)
+    // 開催回に結び付いた掲示板の話題
+    const [threads, setThreads] = useState<EditionThread[]>([])
     // メンバーが追加した大会・開催回の、追加した人の名前（"event:ID" / "edition:ID" → 名前）
     const [creators, setCreators] = useState<Map<string, string>>(new Map())
 
@@ -214,6 +217,14 @@ export default function EventDetailPage() {
             .then(({ data }) => setPlans((data ?? []) as RacePlan[]))
     }, [event, planReload])
 
+    useEffect(() => {
+        if (!event) return
+        const editionIds = event.event_editions.map(ed => ed.id)
+        if (editionIds.length === 0) return
+        createClient().from("public_board_threads").select("id, title, edition_id").in("edition_id", editionIds).order("created_at")
+            .then(({ data }) => setThreads((data ?? []) as EditionThread[]))
+    }, [event])
+
     // データ読み込み後に描画されるため、URL の #edition-○ への移動を読み込み完了後に行う
     useEffect(() => {
         if (status !== "ok" || !window.location.hash) return
@@ -328,6 +339,9 @@ export default function EventDetailPage() {
                                                 canEdit={canWrite}
                                                 onChanged={() => setPlanReload(n => n + 1)}
                                             />
+                                            <div className="mt-1">
+                                                <EditionThreads editionId={ed.id} threads={threads.filter(t => t.edition_id === ed.id)} canCreate={canWrite} />
+                                            </div>
                                         </div>
                                     )}
                                     <EditionOrganizers

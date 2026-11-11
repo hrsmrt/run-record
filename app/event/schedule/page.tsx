@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/client"
 import { useEffect, useState } from 'react'
 import Link from "next/link"
+import { PLAN_LABELS, PLAN_STYLES, type PlanStatus } from "@/lib/race-plans"
 
 type EventEdition = {
     id: number
@@ -62,8 +63,12 @@ function buildWeekList(editions: EventEdition[], fy: number): Week[] {
     return weeks
 }
 
+// 開催回ごとのメンバーの予定（人数と自分の状態）
+type PlanMark = { count: number; recruiting: boolean; mine: PlanStatus | null }
+
 export default function EventSchedulePage() {
     const [editions, setEditions] = useState<EventEdition[]>([])
+    const [marks, setMarks] = useState<Map<number, PlanMark>>(new Map())
 
     const currentFiscalYear = () => {
         const today = new Date()
@@ -85,6 +90,15 @@ export default function EventSchedulePage() {
             }
         }
         fetchEditions()
+        createClient().from("public_race_plans").select("event_edition_id, status, recruiting, is_me")
+            .then(({ data }) => {
+                const m = new Map<number, PlanMark>()
+                for (const p of (data ?? []) as { event_edition_id: number; status: PlanStatus; recruiting: boolean; is_me: boolean }[]) {
+                    const cur = m.get(p.event_edition_id) ?? { count: 0, recruiting: false, mine: null }
+                    m.set(p.event_edition_id, { count: cur.count + 1, recruiting: cur.recruiting || p.recruiting, mine: p.is_me ? p.status : cur.mine })
+                }
+                setMarks(m)
+            })
     }, [])
 
     const fiscalYears = [...new Set(editions.filter(e => e.held_on).map(e => toFiscalYear(e.held_on!)))].sort()
@@ -130,10 +144,13 @@ export default function EventSchedulePage() {
                                                     const dateLabel = ed.held_on
                                                         ? ` (${parseInt(ed.held_on.substring(5, 7))}/${parseInt(ed.held_on.substring(8, 10))})`
                                                         : ""
+                                                    const mark = marks.get(ed.id)
                                                     return (
-                                                        <span key={ed.id} className="inline-flex items-center gap-2">
+                                                        <span key={ed.id} className="inline-flex flex-wrap items-center gap-x-2">
                                                             {ed.events.name}{dateLabel}
-                                                            <Link href={`/event/${ed.events.id}`} className="text-xs text-blue-600 hover:underline shrink-0">詳細</Link>
+                                                            {mark?.mine && <span className={`px-1 rounded border font-sans ${PLAN_STYLES[mark.mine]}`}>{PLAN_LABELS[mark.mine]}</span>}
+                                                            {mark && <span className={`px-1 rounded font-sans ${mark.recruiting ? "bg-orange-100 text-orange-800" : "bg-gray-100 text-gray-700"}`}>{mark.recruiting ? "募集中・" : ""}メンバー{mark.count}人</span>}
+                                                            <Link href={`/event/${ed.events.id}#edition-${ed.id}`} className="text-xs text-blue-600 hover:underline shrink-0">詳細</Link>
                                                         </span>
                                                     )
                                                 })}

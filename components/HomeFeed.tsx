@@ -12,6 +12,7 @@ import {
 } from "@/lib/practices"
 import { UpcomingPractices } from "@/components/UpcomingPractices"
 import { RecruitingRaces } from "@/components/RecruitingRaces"
+import { MissingResults } from "@/components/MissingResults"
 import { BoardThreadItem } from "@/components/BoardList"
 import { NewBadge } from "@/components/NewBadge"
 import { BOARD_THREAD_COLUMNS, type BoardThread } from "@/lib/board"
@@ -89,6 +90,7 @@ export function HomeFeed() {
     return (
         <div className="w-full max-w-4xl mx-auto flex flex-col gap-4 text-black">
             <NewsLine counts={newCounts} />
+            <MissingResults />
             <RecruitingRaces />
             <section id="home-plans" className="flex flex-col gap-1 scroll-mt-4">
                 <h2 className="font-bold flex items-center gap-3">
