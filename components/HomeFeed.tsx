@@ -11,6 +11,7 @@ import {
     compareParticipants, formatKm, isUpcoming, practiceTitle,
 } from "@/lib/practices"
 import { UpcomingPractices } from "@/components/UpcomingPractices"
+import { RecruitingRaces } from "@/components/RecruitingRaces"
 import { BoardThreadItem } from "@/components/BoardList"
 import { NewBadge } from "@/components/NewBadge"
 import { BOARD_THREAD_COLUMNS, type BoardThread } from "@/lib/board"
@@ -34,7 +35,7 @@ const Badge = ({ kind }: { kind: FeedItem["kind"] }) => kind === "race"
     ? <span className="text-xs px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-normal">大会</span>
     : <span className="text-xs px-1.5 py-0.5 rounded bg-green-100 text-green-700 font-normal">練習</span>
 
-// ホーム: 上に今後の練習予定と掲示板の最近の話題、その下に大会の記録と練習録を日付の新しい順に混ぜて表示する
+// ホーム: 上に参加者募集中の大会、今後の練習予定と掲示板の最近の話題、その下に大会の記録と練習録を日付の新しい順に混ぜて表示する
 export function HomeFeed() {
     const [items, setItems] = useState<FeedItem[] | null>(null)
     const [upcoming, setUpcoming] = useState<Practice[]>([])
@@ -88,6 +89,7 @@ export function HomeFeed() {
     return (
         <div className="w-full max-w-4xl mx-auto flex flex-col gap-4 text-black">
             <NewsLine counts={newCounts} />
+            <RecruitingRaces />
             <section id="home-plans" className="flex flex-col gap-1 scroll-mt-4">
                 <h2 className="font-bold flex items-center gap-3">
                     今後の練習予定{newCounts.plans > 0 && <span className="text-xs font-normal text-red-600">新着 {newCounts.plans}件</span>}

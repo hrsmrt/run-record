@@ -12,6 +12,9 @@ import { EditionReports, RaceReport } from "@/components/EditionReports"
 import { VIEWER_ROLE } from "@/lib/viewer"
 import { RACE_ROUTE_COLUMNS, RaceRoutes, type RaceRouteInfo } from "@/components/RaceRoutes"
 import { EditionOrganizers, type EditionOrganizer } from "@/components/EditionOrganizers"
+import { RacePlanPanel } from "@/components/RacePlanPanel"
+import type { RacePlan } from "@/lib/race-plans"
+import { todayStr } from "@/lib/practices"
 
 type Race = {
     id: number
@@ -91,6 +94,9 @@ export default function EventDetailPage() {
     // 開催回ごとの幹事
     const [organizers, setOrganizers] = useState<EditionOrganizer[]>([])
     const [organizerReload, setOrganizerReload] = useState(0)
+    // 開催回ごとのメンバーの予定（これからの開催回だけ出す）
+    const [plans, setPlans] = useState<RacePlan[]>([])
+    const [planReload, setPlanReload] = useState(0)
     // メンバーが追加した大会・開催回の、追加した人の名前（"event:ID" / "edition:ID" → 名前）
     const [creators, setCreators] = useState<Map<string, string>>(new Map())
 
@@ -199,6 +205,15 @@ export default function EventDetailPage() {
             .then(({ data }) => setOrganizers((data ?? []) as EditionOrganizer[]))
     }, [event, organizerReload])
 
+    // 予定はボタンを押すたびに読み直す
+    useEffect(() => {
+        if (!event) return
+        const editionIds = event.event_editions.map(ed => ed.id)
+        if (editionIds.length === 0) return
+        createClient().from("public_race_plans").select("*").in("event_edition_id", editionIds).order("updated_at")
+            .then(({ data }) => setPlans((data ?? []) as RacePlan[]))
+    }, [event, planReload])
+
     // データ読み込み後に描画されるため、URL の #edition-○ への移動を読み込み完了後に行う
     useEffect(() => {
         if (status !== "ok" || !window.location.hash) return
@@ -301,6 +316,18 @@ export default function EventDetailPage() {
                                                     </tbody>
                                                 </table>
                                             </div>
+                                        </div>
+                                    )}
+                                    {(!ed.held_on || ed.held_on >= todayStr()) && (canWrite || plans.some(p => p.event_edition_id === ed.id)) && (
+                                        <div className="mt-2 bg-white text-black p-2 border rounded">
+                                            <h4 className="text-xs font-bold text-gray-600 mb-1">メンバーの予定</h4>
+                                            <RacePlanPanel
+                                                editionId={ed.id}
+                                                races={ed.races}
+                                                plans={plans.filter(p => p.event_edition_id === ed.id)}
+                                                canEdit={canWrite}
+                                                onChanged={() => setPlanReload(n => n + 1)}
+                                            />
                                         </div>
                                     )}
                                     <EditionOrganizers
