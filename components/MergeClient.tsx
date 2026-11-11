@@ -158,7 +158,7 @@ export function MergeClient() {
                 )}
                 {preview && (
                     <p className="text-gray-700">
-                        消す方に付いているもの: 開催回 {preview.editions}・種目 {preview.races}・記録 {preview.results}・大会レポート {preview.reports}・コース {preview.routes}・幹事 {preview.organizers}
+                        消す方に付いているもの: 開催回 {preview.editions}・種目 {preview.races}・記録 {preview.results}・大会レポート {preview.reports}・コース {preview.routes}・記録係 {preview.organizers}
                         （残す方へ付け替えます。同じ日の開催回・同じ距離と名前の種目は、さらにまとめます）
                     </p>
                 )}

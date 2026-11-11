@@ -13,7 +13,7 @@ import { DivisionDatalist } from "@/components/RaceDivisionsEditor"
 import { formatRank, parseCount } from "@/lib/ranks"
 import { parseEnrollmentYear } from "@/lib/enrollment"
 
-// allows_entry: 本人が「他の人に自分の記録を登録させない」にしていなければ true（幹事はそういう人を登録できない）
+// allows_entry: 本人が「他の人に自分の記録を登録させない」にしていなければ true（記録係はそういう人を登録できない）
 type Member = {
     user_id: string
     name: string | null
@@ -75,13 +75,13 @@ const isFilled = (r: EntryRow) =>
     !!(r.userId || r.timeStr || r.cleverStr || r.overallRankStr || r.genderRankStr || r.division || r.divisionRankStr || r.comment)
 
 // 1つのレースについて複数人の記録をまとめて登録する。
-// 管理者（editionId なし）は全レース、幹事（editionId あり）は幹事をしている開催回の種目だけ
+// 管理者（editionId なし）は全レース、記録係（editionId あり）は記録係をしている開催回の種目だけ
 export function BulkResultsClient({ editionId }: { editionId?: number }) {
     const organizerMode = editionId != null
-    // 幹事はその開催回の種目から選ぶ。管理者は大会 → 開催日 → 種目の順に選ぶ（RacePicker）
+    // 記録係はその開催回の種目から選ぶ。管理者は大会 → 開催日 → 種目の順に選ぶ（RacePicker）
     const { options: allRaceOptions, error: raceError } = useRaceOptions()
     const raceOptions = allRaceOptions && organizerMode ? allRaceOptions.filter(o => o.editionId === editionId) : allRaceOptions
-    // 自分の ID（幹事は自分が登録した記録だけ削除できる）
+    // 自分の ID（記録係は自分が登録した記録だけ削除できる）
     const [myId, setMyId] = useState("")
     const [members, setMembers] = useState<Member[]>([])
     const [race, setRace] = useState<RaceOption | null>(null)
@@ -106,8 +106,8 @@ export function BulkResultsClient({ editionId }: { editionId?: number }) {
             const supabase = createClient()
             const { data: { user } } = await supabase.auth.getUser()
             setMyId(user?.id ?? "")
-            // 管理者・幹事とも entry_member_list（入学年度・ふりがな付き）。
-            // 「登録させない」設定は幹事にだけ効く（管理者は全員を登録できる）
+            // 管理者・記録係とも entry_member_list（入学年度・ふりがな付き）。
+            // 「登録させない」設定は記録係にだけ効く（管理者は全員を登録できる）
             const { data, error } = await supabase.rpc("entry_member_list")
             if (error) { setMessage({ text: `メンバー一覧の読み込みに失敗しました: ${error.message}`, isError: true }); return }
             const list: Member[] = ((data ?? []) as { user_id: string; name: string | null; is_pending: boolean; allows_entry: boolean; enrollment_year: number | null; name_kana: string | null }[])
@@ -149,7 +149,7 @@ export function BulkResultsClient({ editionId }: { editionId?: number }) {
         if (enrollmentYear === undefined) { setMessage({ text: "入学年度は西暦4桁（例: 2017）で入力してください", isError: true }); return }
         if (members.some(m => m.name === name) && !confirm(`「${name}」は一覧にすでにいます。別人として追加しますか？`)) return
         setAdding(true)
-        // 管理者・幹事とも、メンバー用の関数で追加する（ID は DB の既定値で作られる）
+        // 管理者・記録係とも、メンバー用の関数で追加する（ID は DB の既定値で作られる）
         const { data, error } = await createClient()
             .rpc("add_pending_member", { p_name: name, p_gender: newGender, p_enrollment_year: enrollmentYear, p_name_kana: newKana.trim() || null })
         setAdding(false)
@@ -242,7 +242,7 @@ export function BulkResultsClient({ editionId }: { editionId?: number }) {
         loadExisting(race.id)
     }
 
-    // 幹事は自分が登録した記録だけ削除できる（DB でも同じ条件）。管理者は記録を編集のページから
+    // 記録係は自分が登録した記録だけ削除できる（DB でも同じ条件）。管理者は記録を編集のページから
     const handleDeleteExisting = async (e: ExistingResult) => {
         if (!race || !confirm(`${memberName(e.user_id)}の記録を削除しますか？`)) return
         const { error } = await createClient().from("results").delete().eq("id", e.id)
@@ -283,7 +283,7 @@ export function BulkResultsClient({ editionId }: { editionId?: number }) {
                 )}
                 <p className="mt-1 text-xs text-gray-500">
                     {organizerMode
-                        ? "幹事をしている開催回の種目だけが選べます。種目がないときは大会詳細やこのページの最初から追加できます"
+                        ? "記録係をしている開催回の種目だけが選べます。種目がないときは大会詳細やこのページの最初から追加できます"
                         : "見つからない大会・開催日・種目は、その場で追加できます（入力の詳細は大会編集などで直せます）"}
                 </p>
                 {race && (
@@ -336,7 +336,7 @@ export function BulkResultsClient({ editionId }: { editionId?: number }) {
                         )}
                         <p className="mt-1 text-xs text-gray-500">
                             {organizerMode
-                                ? "幹事は自分が登録した記録を削除できます（直すときは削除して登録し直してください）。本人が登録した記録は変えられません。"
+                                ? "記録係は自分が登録した記録を削除できます（直すときは削除して登録し直してください）。本人が登録した記録は変えられません。"
                                 : <>登録済みの記録の修正・削除・ラップ入力は <Link href="/records/edit" className="text-blue-600 hover:underline">記録を編集</Link> から</>}
                         </p>
                     </section>

@@ -13,11 +13,11 @@ export type EditionOrganizer = {
     is_me: boolean
 }
 
-// 開催回の幹事。メンバーなら誰でも幹事になれ、幹事はその開催回の記録をまとめて登録できる
+// 開催回の記録係。メンバーなら誰でも記録係になれ、記録係はその開催回の記録をまとめて登録できる
 export function EditionOrganizers({ editionId, organizers, canJoin, onChanged }: {
     editionId: number
     organizers: EditionOrganizer[]
-    // 閲覧用アカウントは幹事になれない
+    // 閲覧用アカウントは記録係になれない
     canJoin: boolean
     onChanged: () => void
 }) {
@@ -27,7 +27,7 @@ export function EditionOrganizers({ editionId, organizers, canJoin, onChanged }:
     if (organizers.length === 0 && !canJoin) return null
 
     const toggle = async () => {
-        if (amOrganizer && !confirm("この開催回の幹事をやめますか？（登録した記録はそのまま残ります）")) return
+        if (amOrganizer && !confirm("この開催回の記録係をやめますか？（登録した記録はそのまま残ります）")) return
         setBusy(true)
         setError("")
         const supabase = createClient()
@@ -43,7 +43,7 @@ export function EditionOrganizers({ editionId, organizers, canJoin, onChanged }:
 
     return (
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-            <span className="font-bold text-gray-600">幹事</span>
+            <span className="font-bold text-gray-600">記録係</span>
             {organizers.length === 0
                 ? <span className="text-gray-500">なし</span>
                 : organizers.map((o, i) => (
@@ -53,7 +53,7 @@ export function EditionOrganizers({ editionId, organizers, canJoin, onChanged }:
                 ))}
             {canJoin && (
                 <button onClick={toggle} disabled={busy} className="text-blue-600 hover:underline disabled:opacity-50">
-                    {amOrganizer ? "幹事をやめる" : "幹事になる"}
+                    {amOrganizer ? "記録係をやめる" : "記録係になる"}
                 </button>
             )}
             {amOrganizer && (

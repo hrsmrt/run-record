@@ -92,7 +92,7 @@ export default function EventDetailPage() {
     const [routes, setRoutes] = useState<Map<number, RaceRouteInfo>>(new Map())
     const [routeEditable, setRouteEditable] = useState<Set<number>>(new Set())
     const [routeReload, setRouteReload] = useState(0)
-    // 開催回ごとの幹事
+    // 開催回ごとの記録係
     const [organizers, setOrganizers] = useState<EditionOrganizer[]>([])
     const [organizerReload, setOrganizerReload] = useState(0)
     // 開催回ごとのメンバーの予定（これからの開催回だけ出す）
@@ -199,7 +199,7 @@ export default function EventDetailPage() {
             .then(({ data }) => setCreators(new Map((data ?? []).map(c => [`${c.kind}:${c.id}`, c.name as string]))))
     }, [event])
 
-    // 幹事は「幹事になる・やめる」のたびに読み直す
+    // 記録係は「記録係になる・やめる」のたびに読み直す
     useEffect(() => {
         if (!event) return
         const editionIds = event.event_editions.map(ed => ed.id)

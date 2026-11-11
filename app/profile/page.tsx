@@ -55,7 +55,7 @@ export default function ProfilePage() {
         <strong>入学年度:</strong>{" "}
         {profile?.enrollment_year != null ? `${profile.enrollment_year}年度（${yearsSinceEnrollment(profile.enrollment_year)}年目）` : "未登録"}
       </div>
-      <div className="mb-2"><strong>幹事による記録の登録:</strong> {profile?.block_others_entry ? "させない" : "許可する"}</div>
+      <div className="mb-2"><strong>記録係による記録の登録:</strong> {profile?.block_others_entry ? "させない" : "許可する"}</div>
 
       <div className="mt-4 flex flex-col gap-2">
         <Link

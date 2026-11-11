@@ -26,7 +26,7 @@
 - `/records/form` - フォームで記録追加（メンバーのみ。`?race=種目ID` でその種目を選んだ状態）
 - `/records/upload` - CSV形式で記録追加（メンバーのみ）
 - `/records/edit` - 記録を編集（メンバーのみ）
-- `/records/bulk` - 幹事による記録の一括登録の入口（大会 → 開催日 → 種目を選ぶ・追加して幹事になる）。`?edition=開催回ID` で一括登録（その開催回の幹事のときだけ）
+- `/records/bulk` - 記録係による記録の一括登録の入口（大会 → 開催日 → 種目を選ぶ・追加して記録係になる）。`?edition=開催回ID` で一括登録（その開催回の記録係のときだけ）
 - `/records/[id]/splits` - ラップ入力（メンバーのみ、自分の記録のみ。管理者は全員分）
 - `/reports/edit/[editionId]` - 大会レポート（感想・観光）の編集（メンバーのみ）
 - `/event` - 大会一覧（都道府県コード順）
@@ -93,17 +93,17 @@
 - **ふりがな・メンバーの並び順と検索**（`sql/2026-11-08_member_catalog.sql`）
   - `profiles.name_kana`・`profiles_pending.name_kana`、`member_names.name_kana`。本人はプロフィール、管理者はメンバー編集（`admin_set_name_kana()`）で入れる
   - 並び順は入学年度の新しい順 → ふりがな順（入学年度なしは最後。練習録の参加メンバーは主催者が先頭）、検索は名前・ふりがな・入学年度（「17」で2017年度入学）、ひらがな・カタカナを区別しない（`lib/members.ts`）
-  - 記録の一括登録のメンバー選択は検索できる入力欄 `components/MemberCombobox.tsx`（管理者・幹事とも `entry_member_list()`）
+  - 記録の一括登録のメンバー選択は検索できる入力欄 `components/MemberCombobox.tsx`（管理者・記録係とも `entry_member_list()`）
 - **メンバーの非表示**（`sql/2026-11-08_hidden_members.sql`）: `profiles.is_hidden`・`profiles_pending.is_hidden`（`member_names.is_hidden`）。管理者がメンバー編集でチェック（`admin_set_member_hidden()`）。非表示の人は `public_results`・`member_directory()`・`entry_member_list()`・`public_practice_participants`・`public_practice_rsvps` から除く（検証用の架空のメンバー向け。書き込み類は残る）
 - **メンバーによる大会・開催回・種目の追加**（同じ SQL）
   - `events`・`event_editions`・`races` に `created_by`。追加はメンバー全員、修正・削除は追加した本人と管理者（既存の行は管理者のみ）。`public_catalog_creators` で大会詳細に「追加: 〇〇」
-  - 選ぶ・追加するのは `components/RacePicker.tsx`（大会 → 開催日 → 種目。最初は「2週間後〜半年前に登録済みの開催日がある大会」と「前回の開催日の52週後（推定日）が2週間後〜2か月前で、今年の開催日が未登録（推定日の前後45日に開催回がない）の大会」を日付の新しい順、検索はすべてから。推定の大会は一覧で前回の開催日を「（昨年）」付きでオレンジ表示し、開催日の段階で推定日を入れた「今年の開催日を追加」ボタンを出す。開催日は今日までを近い順 → これから先。似た名前の大会を「この大会ではありませんか？」と出す。`normalizeEventName` は空白・第〇回・年・「大会」を無視）。記録追加・一括登録・幹事の入口で使う
+  - 選ぶ・追加するのは `components/RacePicker.tsx`（大会 → 開催日 → 種目。最初は「2週間後〜半年前に登録済みの開催日がある大会」と「前回の開催日の52週後（推定日）が2週間後〜2か月前で、今年の開催日が未登録（推定日の前後45日に開催回がない）の大会」を日付の新しい順、検索はすべてから。推定の大会は一覧で前回の開催日を「（昨年）」付きでオレンジ表示し、開催日の段階で推定日を入れた「今年の開催日を追加」ボタンを出す。開催日は今日までを近い順 → これから先。似た名前の大会を「この大会ではありませんか？」と出す。`normalizeEventName` は空白・第〇回・年・「大会」を無視）。記録追加・一括登録・記録係の入口で使う
   - 同じ大会の同じ開催日・同じ開催回の同じ距離と名前の種目は一意の制約（既存の重複があれば付けずに NOTICE）
-  - 管理者は `admin_merge_events()`・`admin_merge_editions()`・`admin_merge_races()` でまとめる（開催回・種目・記録・部門・コース・レポート・幹事を付け替え、同じ日・同じ種目はさらにまとめる。同じ人の記録・レポート、両方にあるコースは止める）。件数の確認は `admin_merge_preview()`
-- **開催回ごとの幹事**（`sql/2026-11-08_edition_organizers.sql`）
-  - `edition_organizers`（開催回 × メンバー）。メンバーなら誰でも大会詳細の「幹事になる」でなれる（やめるのは本人と管理者）
-  - 幹事はその開催回の種目に、他のメンバー（アカウントなし含む）の記録を一括登録できる（`/records/bulk`、`BulkResultsClient` の `editionId` あり）。自分が登録した記録だけ削除できる。本人が入れた記録は変えられない。判定は `race_organizer_can()` と `results.created_by`
-  - 本人の「他の人（幹事）に自分の記録を登録させない」（`block_others_entry`、`member_allows_entry()`）。管理者の登録は対象外
+  - 管理者は `admin_merge_events()`・`admin_merge_editions()`・`admin_merge_races()` でまとめる（開催回・種目・記録・部門・コース・レポート・記録係を付け替え、同じ日・同じ種目はさらにまとめる。同じ人の記録・レポート、両方にあるコースは止める）。件数の確認は `admin_merge_preview()`
+- **開催回ごとの記録係**（`sql/2026-11-08_edition_organizers.sql`。2026-11-12 に画面の呼び名を「幹事」から変更。行程を取り仕切る幹事と、記録を登録する人が別のことがあるため。DB の名前は organizer のまま）
+  - `edition_organizers`（開催回 × メンバー）。メンバーなら誰でも大会詳細の「記録係になる」でなれる（やめるのは本人と管理者）
+  - 記録係はその開催回の種目に、他のメンバー（アカウントなし含む）の記録を一括登録できる（`/records/bulk`、`BulkResultsClient` の `editionId` あり）。自分が登録した記録だけ削除できる。本人が入れた記録は変えられない。判定は `race_organizer_can()` と `results.created_by`
+  - 本人の「他の人（記録係）に自分の記録を登録させない」（`block_others_entry`、`member_allows_entry()`）。管理者の登録は対象外
   - `results` は同じ人・同じ種目で1件まで（`results_race_user_unique`、エラーコード 23505）
   - `public_results.entered_by_name`: 本人以外が登録した記録は登録した人の名前（大会詳細に「登録: 〇〇」）
   - 変更履歴 `results_history`（トリガー `log_results_change()` で insert / update / delete を自動記録）、管理者は `admin_results_history` で名前つきで読む
@@ -189,7 +189,7 @@
 - `2026-11-08_practice_recorded.sql` - 練習が記録済みかどうか（`is_recorded`）、`finish_practice()`
 - `2026-11-08_board_last_post.sql` - `public_board_threads` に最後の返信（先頭80文字・書いた人・日時）を追加
 - `2026-11-08_practice_plan_routes.sql` - 練習録のルート案の列、`public_practices` に追加
-- `2026-11-08_edition_organizers.sql` - 開催回ごとの幹事、記録の一意の制約、登録させない設定、変更履歴、`public_results.entered_by_name`
+- `2026-11-08_edition_organizers.sql` - 開催回ごとの記録係、記録の一意の制約、登録させない設定、変更履歴、`public_results.entered_by_name`
 - `2026-11-08_member_catalog.sql` - ふりがな、メンバーによる大会・開催回・種目の追加、重複の防止、管理者による「まとめる」
 - `2026-11-08_hidden_members.sql` - メンバーの非表示（検証用など）
 
@@ -203,7 +203,7 @@
 - 練習録の地図の全画面表示、大会のコース（種目ごとの GPX、登録した人の名前、5kmごとの印）
 - 練習予定と参加ボタン、練習ごとのやりとり、掲示板と日程調整、新着の表示
 - 練習録のルート案（地図で描く、地理院の標高）
-- 開催回ごとの幹事（他のメンバーの記録の一括登録）、記録の変更履歴
+- 開催回ごとの記録係（他のメンバーの記録の一括登録）、記録の変更履歴
 - ふりがなと入学年度順・検索できるメンバー選択、メンバーによる大会の追加（大会 → 開催日 → 種目の選択）、重複をまとめる管理画面
 - 今後の候補: ルート案を道路に沿わせる（OpenRouteService など。API キーはサーバー側で）、GPX の時刻からラップを自動で入れる（ラップ入力ページの補助。GPX は保存しない）、新着のメール通知（メール配信サービスが必要）、最後に見た日時を DB に持たせて端末間でそろえる
 
@@ -325,6 +325,6 @@
 
 #### 次回作業時のポイント
 - リンク集にリンクを追加する場合は、`app/links/page.tsx`の`links`配列を編集
-- ヘッダーメニューの順序: 最近の記録 → 出場大会記録 → 練習録 → 掲示板 → 大会予定 → 大会情報 → 検索 → リンク集 → [メンバー向けメニュー（閲覧用アカウントでは非表示。記録をまとめて登録（幹事）を含む）] → [admin のみ: 大会情報を編集]
+- ヘッダーメニューの順序: 最近の記録 → 出場大会記録 → 練習録 → 掲示板 → 大会予定 → 大会情報 → 検索 → リンク集 → [メンバー向けメニュー（閲覧用アカウントでは非表示。記録をまとめて登録（記録係）を含む）] → [admin のみ: 大会情報を編集]
 - RecordTableのcomment欄でリンクを使う場合は、`[リンクテキスト](URL)`の形式で記述
 - コード変更後は `npm run lint` でeslintチェックを実施

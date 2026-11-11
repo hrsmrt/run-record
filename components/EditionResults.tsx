@@ -23,7 +23,7 @@ export type EventResult = {
     division_rank: number | null
     division_total: number | null
     enrollment_year: number | null
-    // 本人以外（幹事・管理者）が登録した記録は、登録した人の名前
+    // 本人以外（記録係・管理者）が登録した記録は、登録した人の名前
     entered_by_name: string | null
 }
 

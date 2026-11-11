@@ -16,7 +16,7 @@ export default function ProfileEditPage() {
     const router = useRouter()
     const [profile, setProfile] = useState<Profile>({ name: "", display_name: "", gender: "", birth_year: 2000 })
     const [enrollmentStr, setEnrollmentStr] = useState("")
-    // 「他の人（幹事）に自分の記録を登録させない」
+    // 「他の人（記録係）に自分の記録を登録させない」
     const [blockOthersEntry, setBlockOthersEntry] = useState(false)
     const [nameKana, setNameKana] = useState("")
     const [loading, setLoading] = useState(true)
@@ -151,8 +151,8 @@ export default function ProfileEditPage() {
                 <label className="flex items-start gap-2 text-sm">
                     <input type="checkbox" checked={blockOthersEntry} onChange={e => setBlockOthersEntry(e.target.checked)} className="mt-1" />
                     <span>
-                        他の人（大会の幹事）に自分の記録を登録させない
-                        <span className="block text-xs text-gray-500">オンにすると、幹事の一括登録で自分を選べなくなります。自分で登録した記録・管理人による登録には影響しません。</span>
+                        他の人（大会の記録係）に自分の記録を登録させない
+                        <span className="block text-xs text-gray-500">オンにすると、記録係の一括登録で自分を選べなくなります。自分で登録した記録・管理人による登録には影響しません。</span>
                     </span>
                 </label>
                 <button

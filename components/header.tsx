@@ -178,7 +178,7 @@ export function Header() {
                     className="block px-4 py-2 hover:bg-gray-200"
                     onClick={() => setOpen(false)}
                   >
-                    記録をまとめて登録（幹事）
+                    記録をまとめて登録（記録係）
                   </Link>
                 </li>
                 <li>
