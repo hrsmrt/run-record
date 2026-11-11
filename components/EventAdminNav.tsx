@@ -8,6 +8,7 @@ const PAGES = [
     { href: "/event/edit-members", label: "メンバー編集" },
     { href: "/event/edit-history", label: "記録の変更履歴" },
     { href: "/event/edit-merge", label: "重複をまとめる" },
+    { href: "/event/edit-unlinked", label: "紐付けのない記録" },
 ]
 
 export function EventAdminNav({ current }: { current: string }) {
