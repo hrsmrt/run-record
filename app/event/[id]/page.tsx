@@ -14,6 +14,10 @@ import { RACE_ROUTE_COLUMNS, RaceRoutes, type RaceRouteInfo } from "@/components
 import { EditionOrganizers, type EditionOrganizer } from "@/components/EditionOrganizers"
 import { RacePlanPanel } from "@/components/RacePlanPanel"
 import { EditionThreads, type EditionThread } from "@/components/EditionThreads"
+import { EventEntryInfoEditor, type EntryInfoRow } from "@/components/EventEntryInfoEditor"
+import { EventNotes } from "@/components/EventNotes"
+import { RaceDayInfoEditor, formatCertified, formatStartTime } from "@/components/RaceDayInfoEditor"
+import type { EventNote } from "@/lib/event-info"
 import type { RacePlan } from "@/lib/race-plans"
 import { todayStr } from "@/lib/practices"
 
@@ -30,6 +34,8 @@ type Race = {
     entrants_total: number | null
     entrants_male: number | null
     entrants_female: number | null
+    start_time: string | null
+    jaaf_certified: boolean | null
 }
 
 type EventEdition = {
@@ -100,6 +106,10 @@ export default function EventDetailPage() {
     const [planReload, setPlanReload] = useState(0)
     // 開催回に結び付いた掲示板の話題
     const [threads, setThreads] = useState<EditionThread[]>([])
+    // 例年のエントリー方式・難易度と、大会のメモ（どちらも変えるたびに読み直す）
+    const [entryInfo, setEntryInfo] = useState<EntryInfoRow | null>(null)
+    const [notes, setNotes] = useState<EventNote[]>([])
+    const [infoReload, setInfoReload] = useState(0)
     // メンバーが追加した大会・開催回の、追加した人の名前（"event:ID" / "edition:ID" → 名前）
     const [creators, setCreators] = useState<Map<string, string>>(new Map())
 
@@ -225,6 +235,15 @@ export default function EventDetailPage() {
             .then(({ data }) => setThreads((data ?? []) as EditionThread[]))
     }, [event])
 
+    useEffect(() => {
+        if (!event) return
+        const supabase = createClient()
+        supabase.from("public_event_entry_info").select("entry_method, entry_difficulty, updated_by_name, updated_at").eq("event_id", event.id).maybeSingle()
+            .then(({ data }) => setEntryInfo((data as EntryInfoRow | null) ?? null))
+        supabase.from("public_event_notes").select("*").eq("event_id", event.id)
+            .then(({ data }) => setNotes((data ?? []) as EventNote[]))
+    }, [event, infoReload])
+
     // データ読み込み後に描画されるため、URL の #edition-○ への移動を読み込み完了後に行う
     useEffect(() => {
         if (status !== "ok" || !window.location.hash) return
@@ -269,7 +288,19 @@ export default function EventDetailPage() {
                                     </a>
                                 ) : "なし"}
                             </dd>
+                            <EventEntryInfoEditor eventId={event.id} info={entryInfo} canEdit={canWrite} onChanged={() => setInfoReload(n => n + 1)} />
                         </dl>
+
+                        <h2 className="text-base font-bold mb-2">大会のメモ{notes.length > 0 && <span className="ml-2 text-xs font-normal text-gray-500">{notes.length}件</span>}</h2>
+                        <div className="mb-6 max-w-4xl text-black">
+                            <EventNotes
+                                eventId={event.id}
+                                editions={event.event_editions}
+                                notes={notes}
+                                canWrite={canWrite}
+                                onChanged={() => setInfoReload(n => n + 1)}
+                            />
+                        </div>
 
                         <h2 className="text-base font-bold mb-2">開催回</h2>
                         {event.event_editions.length === 0 && (
@@ -293,6 +324,8 @@ export default function EventDetailPage() {
                                                         <tr className="bg-white border-b">
                                                             <th className="px-1 md:px-3 py-0 text-left">種目</th>
                                                             <th className="px-1 md:px-3 py-0 text-right">距離</th>
+                                                            <th className="px-1 md:px-3 py-0 text-right">スタート</th>
+                                                            <th className="px-1 md:px-3 py-0 text-left">公認</th>
                                                             <th className="px-1 md:px-3 py-0 text-right">制限時間</th>
                                                             <th className="px-1 md:px-3 py-0 text-right">高低差</th>
                                                             <th className="px-1 md:px-3 py-0 text-right">参加費</th>
@@ -306,6 +339,8 @@ export default function EventDetailPage() {
                                                             <tr key={r.id}>
                                                                 <td className="px-1 md:px-3 py-0">{r.name}</td>
                                                                 <td className="px-1 md:px-3 py-0 text-right">{r.distance_km}km</td>
+                                                                <td className="px-1 md:px-3 py-0 text-right">{formatStartTime(r.start_time)}</td>
+                                                                <td className="px-1 md:px-3 py-0">{formatCertified(r.jaaf_certified)}</td>
                                                                 <td className="px-1 md:px-3 py-0 text-right">
                                                                     {r.time_limit_minutes != null ? formatTimeLimit(r.time_limit_minutes) : ""}
                                                                 </td>
@@ -328,6 +363,18 @@ export default function EventDetailPage() {
                                                 </table>
                                             </div>
                                         </div>
+                                    )}
+                                    {canWrite && (
+                                        <RaceDayInfoEditor
+                                            races={ed.races}
+                                            onSaved={(raceId, startTime, jaafCertified) => setEvent(prev => prev && {
+                                                ...prev,
+                                                event_editions: prev.event_editions.map(e => ({
+                                                    ...e,
+                                                    races: e.races.map(r => r.id === raceId ? { ...r, start_time: startTime, jaaf_certified: jaafCertified } : r),
+                                                })),
+                                            })}
+                                        />
                                     )}
                                     {(!ed.held_on || ed.held_on >= todayStr()) && (canWrite || plans.some(p => p.event_edition_id === ed.id)) && (
                                         <div className="mt-2 bg-white text-black p-2 border rounded">

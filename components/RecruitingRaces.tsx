@@ -7,6 +7,8 @@ import { VIEWER_ROLE } from "@/lib/viewer"
 import { formatDate } from "@/components/RaceGroups"
 import { RacePlanPanel } from "@/components/RacePlanPanel"
 import { EditionThreads, type EditionThread } from "@/components/EditionThreads"
+import { EntryInfoBadge } from "@/components/EntryInfoBadge"
+import type { EventEntryInfo } from "@/lib/event-info"
 import { type RacePlan, entryDeadlineText } from "@/lib/race-plans"
 import { todayStr } from "@/lib/practices"
 
@@ -32,6 +34,7 @@ export function RecruitingRaces() {
     const [items, setItems] = useState<Recruiting[]>([])
     const [canEdit, setCanEdit] = useState(false)
     const [threads, setThreads] = useState<EditionThread[]>([])
+    const [entryInfo, setEntryInfo] = useState<Map<number, EventEntryInfo>>(new Map())
 
     const load = useCallback(async () => {
         const supabase = createClient()
@@ -43,11 +46,14 @@ export function RecruitingRaces() {
         const plans = (planData ?? []) as RacePlan[]
         const editionIds = [...new Set(plans.filter(p => p.recruiting).map(p => p.event_edition_id))]
         if (editionIds.length === 0) { setItems([]); return }
-        const [{ data: raceData }, { data: threadData }] = await Promise.all([
+        const eventIds = [...new Set(plans.map(p => p.event_id))]
+        const [{ data: raceData }, { data: threadData }, { data: eventData }] = await Promise.all([
             supabase.from("races").select("id, name, event_edition_id, entry_end_at").in("event_edition_id", editionIds),
             supabase.from("public_board_threads").select("id, title, edition_id").in("edition_id", editionIds).order("created_at"),
+            supabase.from("events").select("id, entry_method, entry_difficulty").in("id", eventIds),
         ])
         setThreads((threadData ?? []) as EditionThread[])
+        setEntryInfo(new Map(((eventData ?? []) as (EventEntryInfo & { id: number })[]).map(e => [e.id, e])))
         const races = (raceData ?? []) as EditionRace[]
         const now = Date.now()
         const list = editionIds.flatMap(id => {
@@ -84,6 +90,7 @@ export function RecruitingRaces() {
                                 <span className="font-mono font-bold">{formatDate(it.heldOn)}（{weekday(it.heldOn)}）</span>
                                 <Link href={`/event/${it.eventId}#edition-${it.editionId}`} className="font-bold text-blue-600 hover:underline">{it.eventName}</Link>
                                 {deadline && <span className="text-xs font-bold text-red-600">エントリー{deadline}</span>}
+                                <EntryInfoBadge info={entryInfo.get(it.eventId)} />
                             </div>
                             <RacePlanPanel editionId={it.editionId} races={it.races} plans={it.plans} canEdit={canEdit} compact onChanged={load} />
                             <EditionThreads editionId={it.editionId} threads={threads.filter(t => t.edition_id === it.editionId)} canCreate={canEdit} />

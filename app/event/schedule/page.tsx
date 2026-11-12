@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/client"
 import { useEffect, useState } from 'react'
 import Link from "next/link"
 import { PLAN_LABELS, PLAN_STYLES, type PlanStatus } from "@/lib/race-plans"
+import { EntryInfoBadge } from "@/components/EntryInfoBadge"
+import type { EntryDifficulty, EntryMethod } from "@/lib/event-info"
 
 type EventEdition = {
     id: number
@@ -11,6 +13,8 @@ type EventEdition = {
     events: {
         id: number
         name: string
+        entry_method: EntryMethod | null
+        entry_difficulty: EntryDifficulty | null
     }
 }
 
@@ -81,7 +85,7 @@ export default function EventSchedulePage() {
             const supabase = createClient()
             const { data, error } = await supabase
                 .from('event_editions')
-                .select('id, held_on, events(id, name)')
+                .select('id, held_on, events(id, name, entry_method, entry_difficulty)')
                 .order('held_on', { ascending: true })
             if (error) {
                 console.error('Error fetching event editions:', error)
@@ -148,6 +152,7 @@ export default function EventSchedulePage() {
                                                     return (
                                                         <span key={ed.id} className="inline-flex flex-wrap items-center gap-x-2">
                                                             {ed.events.name}{dateLabel}
+                                                            <span className="font-sans"><EntryInfoBadge info={ed.events} /></span>
                                                             {mark?.mine && <span className={`px-1 rounded border font-sans ${PLAN_STYLES[mark.mine]}`}>{PLAN_LABELS[mark.mine]}</span>}
                                                             {mark && <span className={`px-1 rounded font-sans ${mark.recruiting ? "bg-orange-100 text-orange-800" : "bg-gray-100 text-gray-700"}`}>{mark.recruiting ? "募集中・" : ""}メンバー{mark.count}人</span>}
                                                             <Link href={`/event/${ed.events.id}#edition-${ed.id}`} className="text-xs text-blue-600 hover:underline shrink-0">詳細</Link>

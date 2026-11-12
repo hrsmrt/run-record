@@ -8,6 +8,8 @@ import { formatDate } from "@/components/RaceGroups"
 import { RacePlanPanel } from "@/components/RacePlanPanel"
 import { MissingResults } from "@/components/MissingResults"
 import { EditionThreads, type EditionThread } from "@/components/EditionThreads"
+import { EntryInfoBadge } from "@/components/EntryInfoBadge"
+import type { EventEntryInfo } from "@/lib/event-info"
 import { PLAN_LABELS, PLAN_STYLES, type RacePlan, entryStatusText } from "@/lib/race-plans"
 import { todayStr } from "@/lib/practices"
 
@@ -29,6 +31,7 @@ export function RacePlansOverview() {
     const [plans, setPlans] = useState<RacePlan[] | null>(null)
     const [races, setRaces] = useState<EditionRace[]>([])
     const [threads, setThreads] = useState<EditionThread[]>([])
+    const [entryInfo, setEntryInfo] = useState<Map<number, EventEntryInfo>>(new Map())
     const [canEdit, setCanEdit] = useState(false)
 
     const load = useCallback(async () => {
@@ -41,10 +44,12 @@ export function RacePlansOverview() {
         const list = (planData ?? []) as RacePlan[]
         const editionIds = [...new Set(list.map(p => p.event_edition_id))]
         if (editionIds.length > 0) {
-            const [{ data: raceData }, { data: threadData }] = await Promise.all([
+            const [{ data: raceData }, { data: threadData }, { data: eventData }] = await Promise.all([
                 supabase.from("races").select("id, name, event_edition_id, entry_start_at, entry_end_at").in("event_edition_id", editionIds),
                 supabase.from("public_board_threads").select("id, title, edition_id").in("edition_id", editionIds).order("created_at"),
+                supabase.from("events").select("id, entry_method, entry_difficulty").in("id", [...new Set(list.map(p => p.event_id))]),
             ])
+            setEntryInfo(new Map(((eventData ?? []) as (EventEntryInfo & { id: number })[]).map(e => [e.id, e])))
             setRaces(((raceData ?? []) as EditionRace[]).sort((a, b) => a.name.localeCompare(b.name, "ja")))
             setThreads((threadData ?? []) as EditionThread[])
         }
@@ -82,6 +87,7 @@ export function RacePlansOverview() {
                                         <span className={`text-xs px-1 rounded border ${PLAN_STYLES[p.status]}`}>{PLAN_LABELS[p.status]}</span>
                                         {p.race_name && <span className="text-xs">{p.race_name}</span>}
                                         {entry && <span className={`text-xs ${entry.urgent && p.status !== "entered" ? "font-bold text-red-600" : "text-gray-600"}`}>{entry.text}</span>}
+                                        <EntryInfoBadge info={entryInfo.get(p.event_id)} />
                                         {p.is_private && <span className="text-xs text-gray-500">自分だけに表示</span>}
                                         {p.recruiting && <span className="text-xs px-1 rounded bg-orange-100 text-orange-800">募集中</span>}
                                     </li>
@@ -106,6 +112,7 @@ export function RacePlansOverview() {
                                     <span className="font-mono font-bold">{formatDate(e.held_on!)}（{weekday(e.held_on!)}）</span>
                                     <Link href={`/event/${e.event_id}#edition-${e.event_edition_id}`} className="font-bold text-blue-600 hover:underline">{e.event_name}</Link>
                                     {entry && <span className={`text-xs ${entry.urgent ? "font-bold text-red-600" : "text-gray-600"}`}>{entry.text}</span>}
+                                    <EntryInfoBadge info={entryInfo.get(e.event_id)} />
                                 </div>
                                 <RacePlanPanel editionId={e.event_edition_id} races={edRaces} plans={edPlans} canEdit={canEdit} onChanged={load} />
                                 <EditionThreads editionId={e.event_edition_id} threads={threads.filter(t => t.edition_id === e.event_edition_id)} canCreate={canEdit} />

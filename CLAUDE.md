@@ -32,7 +32,7 @@
 - `/event` - 大会一覧（都道府県コード順）
 - `/event/editions` - 開催一覧
 - `/event/schedule` - カレンダー（年度・週単位、祝日表示）
-- `/event/[id]` - 大会詳細（基本情報・開催回・種目・これからの開催回のメンバーの予定・コースの地図・参加者の記録とラップ）
+- `/event/[id]` - 大会詳細（基本情報・例年のエントリー方式と難易度・大会のメモ・開催回・種目・これからの開催回のメンバーの予定・コースの地図・参加者の記録とラップ）
 - `/event/edit-events` - 大会編集（admin のみ）
 - `/event/edit-editions` - 開催日編集（admin のみ）
 - `/event/edit-races` - 種目編集（admin のみ。エントリー数・部門ごとのエントリー数もここ）
@@ -140,6 +140,12 @@
   - `uploaded_by` は RLS で本人に固定し、`public_race_routes` で登録した人の名前を出す（`can_edit` は差し替え・削除できるか）。差し替えると前の GPX は上書きされ残らない
   - 大会詳細の開催回ごとに `components/RaceRoutes.tsx`。地図は「地図を表示」で開いたときに `route_line` を取る。5kmごとの印（GPS の目安）
   - GPX の選択・消す範囲・プレビューは練習録と共通の `components/GpxPicker.tsx`（大会は既定で消さない）
+- **大会の情報**（`sql/2026-11-12_event_notes.sql`）
+  - 例年のエントリー方式・難易度は `events.entry_method`（first_come / lottery / mixed）・`entry_difficulty`（easy 余裕あり / normal やや人気 / fast 人気 / instant 激戦）。メンバーなら誰でも `set_event_entry_info()` で変えられる（events の他の列は追加した本人と管理者のみのまま）。最後に変えた人は `public_event_entry_info`
+  - 一覧の「例年 抽選・激戦」の印は `components/EntryInfoBadge.tsx`（ホームの募集・`/plans`・カレンダー）。大会詳細の選択欄は `components/EventEntryInfoEditor.tsx`。ラベルは `lib/event-info.ts`
+  - 大会のメモ `event_notes`（大会ごとに何件でも。項目 `categories` は1つ以上の配列で entry / access / raceday / course / prize / sightseeing / other（`sql/2026-11-12_event_notes_tags.sql` で1つから複数に変更）、何年の話か `edition_id` は任意でその大会の開催回に限る（`event_note_edition_ok()`））。書くのはメンバー全員、直す・消すのは書いた本人と管理者。表示は `public_event_notes`・`components/EventNotes.tsx`（新しい順に1列、項目の印と絞り込みボタン）。開催が終わった大会・記録のない大会にも書ける
+  - 種目のスタート時刻 `races.start_time`・陸連公認 `races.jaaf_certified`（NULL は不明）。メンバーなら誰でも `set_race_day_info()` で変えられる。大会詳細の種目の表に列、入力は `components/RaceDayInfoEditor.tsx`
+  - 大会レポート（開催回ごとの個人の感想）とは別。`admin_merge_events()`・`admin_merge_editions()` でメモを付け替え、方式・難易度はまとめる先が未入力なら引き継ぐ
 - **大会レポート**: `race_reports`（開催回ごと、感想・観光の文章のみ、改行とリンク）、表示は `public_race_reports`
 - **公開ビュー**: `public_results` に一本化（旧 `public_record`・`public_full_best` など14個は削除済み）
   - `category`（5km / 10km / half / full / 100km / under100 / over100 / time）、`is_best`（利用者×区分のベスト。時間走は距離が長い方）、`has_splits`（ラップ有無）
@@ -166,6 +172,9 @@
 - ホームの一番上に「参加者募集中の大会」（エントリー締切までの日数、その場でボタンを押せる）
 - 大会予定のページ `/plans`（ヘッダーのメニューの「掲示板」の次）、カレンダーに予定の印、大会後の記録の入力の案内、掲示板の話題と大会の結び付け
 - 管理画面「紐付けのない記録」`/event/edit-unlinked`（DB の変更なし）
+- `2026-11-12_event_notes.sql`（`edition_threads.sql` の後）- 例年のエントリー方式・難易度、大会のメモ
+- `2026-11-12_event_notes_tags.sql` - メモの項目を複数に（スタート・当日の流れを追加）、種目のスタート時刻・陸連公認
+- 画面の「幹事」を「記録係」に（外向けのフッター・このサイトについては「同大会参加者」）
 - 今後の候補: 記録の編集（`/records/edit`）でも大会・開催日・種目を追加できるようにする（今の `RaceInput` は登録済みから選ぶだけ）
 
 ### 2026-11-11: 掲示板のルート案、日程調整からの引き継ぎ
