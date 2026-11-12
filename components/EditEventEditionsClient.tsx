@@ -14,6 +14,8 @@ type EventEdition = {
     event_id: number
     edition_number: number | null
     held_on: string | null
+    // 当時の大会名（改名した大会の昔の回だけ。空なら大会の名前と同じ）
+    name: string | null
 }
 
 type NewEdition = Omit<EventEdition, "id">
@@ -21,7 +23,7 @@ type NewEdition = Omit<EventEdition, "id">
 export function EditEventEditionsClient() {
     const [editions, setEditions] = useState<EventEdition[]>([])
     const [events, setEvents] = useState<Event[]>([])
-    const [newRow, setNewRow] = useState<NewEdition>({ event_id: 0, edition_number: null, held_on: null })
+    const [newRow, setNewRow] = useState<NewEdition>({ event_id: 0, edition_number: null, held_on: null, name: null })
     const [message, setMessage] = useState("")
     // 新規追加の結果はフォームの近くに出す
     const [addMessage, setAddMessage] = useState<{ text: string; isError: boolean } | null>(null)
@@ -70,6 +72,7 @@ export function EditEventEditionsClient() {
                     event_id: ed.event_id,
                     edition_number: ed.edition_number,
                     held_on: ed.held_on || null,
+                    name: ed.name?.trim() || null,
                 })
                 .eq("id", ed.id)
             if (error) errors.push(`ID ${ed.id}: ${error.message}`)
@@ -107,6 +110,7 @@ export function EditEventEditionsClient() {
                 event_id: newRow.event_id,
                 edition_number: newRow.edition_number,
                 held_on: newRow.held_on || null,
+                name: newRow.name?.trim() || null,
             })
             .select()
             .single()
@@ -116,7 +120,7 @@ export function EditEventEditionsClient() {
             if (!b.held_on) return -1
             return a.held_on.localeCompare(b.held_on)
         }))
-        setNewRow({ event_id: 0, edition_number: null, held_on: null })
+        setNewRow({ event_id: 0, edition_number: null, held_on: null, name: null })
         setEventSearch("")
         setAddMessage({ text: "追加しました", isError: false })
     }
@@ -140,6 +144,7 @@ export function EditEventEditionsClient() {
                             <th className="px-2 py-1">大会名</th>
                             <th className="px-2 py-1">回数</th>
                             <th className="px-2 py-1">開催日</th>
+                            <th className="px-2 py-1">当時の大会名 <span className="text-xs font-normal text-gray-500">（改名前の回だけ）</span></th>
                             <th className="px-2 py-1">削除</th>
                         </tr>
                     </thead>
@@ -171,6 +176,15 @@ export function EditEventEditionsClient() {
                                         className="px-1 border rounded"
                                         value={ed.held_on ?? ""}
                                         onChange={e => update(ed.id, "held_on", e.target.value || null)}
+                                    />
+                                </td>
+                                <td className="px-2 py-1">
+                                    <input
+                                        className="w-48 px-1 border rounded"
+                                        maxLength={100}
+                                        value={ed.name ?? ""}
+                                        placeholder="大会の名前と同じ"
+                                        onChange={e => update(ed.id, "name", e.target.value || null)}
                                     />
                                 </td>
                                 <td className="px-2 py-1">
@@ -238,6 +252,16 @@ export function EditEventEditionsClient() {
                             className="px-1 border rounded text-sm"
                             value={newRow.held_on ?? ""}
                             onChange={e => setNewRow(prev => ({ ...prev, held_on: e.target.value || null }))}
+                        />
+                    </div>
+                    <div>
+                        <label className="text-xs text-gray-500 block mb-1">当時の大会名（改名前の回だけ）</label>
+                        <input
+                            className="w-48 px-1 border rounded text-sm"
+                            maxLength={100}
+                            value={newRow.name ?? ""}
+                            placeholder="大会の名前と同じ"
+                            onChange={e => setNewRow(prev => ({ ...prev, name: e.target.value || null }))}
                         />
                     </div>
                     <button

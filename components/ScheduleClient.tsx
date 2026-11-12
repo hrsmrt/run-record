@@ -123,6 +123,7 @@ export function ScheduleClient() {
                                                     <div key={ed.id} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 pl-2">
                                                         <span className={`font-mono text-xs ${wd === "日" ? "text-red-600" : wd === "土" ? "text-blue-600" : ""}`}>{md(ed.held_on!)}（{wd}）</span>
                                                         <Link href={`/event/${ev.id}#edition-${ed.id}`} className="font-bold text-blue-600 hover:underline">{ev.name}</Link>
+                                                        {ed.name && <span className="text-xs text-gray-600">（当時: {ed.name}）</span>}
                                                         <span className="text-xs text-gray-600">{ev.prefecture ?? ""}</span>
                                                         <DistanceChips races={own.length > 0 ? own : racesOfEvent(catalog, ev.id)} />
                                                         <EntryInfoBadge info={ev} />

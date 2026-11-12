@@ -40,6 +40,8 @@ type Race = {
 
 type EventEdition = {
     id: number
+    // 当時の大会名（改名前の回。NULL なら大会の名前と同じ）
+    name: string | null
     edition_number: number | null
     held_on: string | null
     races: Race[]
@@ -85,6 +87,16 @@ const formatEntryPeriod = (start: string | null, end: string | null) => {
     return `${start ? formatDateTime(start) : ""} 〜 ${end ? formatDateTime(end) : ""}`
 }
 
+// 旧称（開催回の当時の名前）と、その名前だった年の範囲（"2015〜2019年"）
+function formerNames(event: EventDetail) {
+    const m = new Map<string, string[]>()
+    for (const ed of event.event_editions) if (ed.name && ed.name !== event.name) m.set(ed.name, [...(m.get(ed.name) ?? []), ed.held_on?.substring(0, 4) ?? ""])
+    return [...m.entries()].map(([name, years]) => {
+        const ys = years.filter(Boolean).sort()
+        return { name, range: ys.length === 0 ? "開催日未定" : ys[0] === ys.at(-1) ? `${ys[0]}年` : `${ys[0]}〜${ys.at(-1)}年` }
+    })
+}
+
 export default function EventDetailPage() {
     const { id } = useParams<{ id: string }>()
     const [event, setEvent] = useState<EventDetail | null>(null)
@@ -118,7 +130,7 @@ export default function EventDetailPage() {
             const supabase = createClient()
             const { data, error } = await supabase
                 .from('events')
-                .select('id, name, url, type, prefecture, event_editions(id, edition_number, held_on, races(*))')
+                .select('id, name, url, type, prefecture, event_editions(id, name, edition_number, held_on, races(*))')
                 .eq('id', Number(id))
                 .maybeSingle()
             if (error) {
@@ -269,6 +281,11 @@ export default function EventDetailPage() {
                             {event.name}
                             {creators.has(`event:${event.id}`) && <span className="ml-2 text-xs font-normal text-gray-500">追加: {creators.get(`event:${event.id}`)}</span>}
                         </h1>
+                        {formerNames(event).length > 0 && (
+                            <p className="text-sm text-gray-600 -mt-1 mb-2">
+                                旧称: {formerNames(event).map(f => `${f.name}（${f.range}）`).join("、")}
+                            </p>
+                        )}
                         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm mb-6">
                             <dt className="text-gray-500">県</dt>
                             <dd>{event.prefecture ?? "未設定"}</dd>
@@ -312,6 +329,7 @@ export default function EventDetailPage() {
                                     <h3 className="font-bold text-sm mb-1">
                                         {ed.held_on ? formatDate(ed.held_on) : "開催日未定"}
                                         {ed.edition_number != null && ` 第${ed.edition_number}回`}
+                                        {ed.name && <span className="ml-2 font-normal text-gray-600">（当時: {ed.name}）</span>}
                                         {creators.has(`edition:${ed.id}`) && <span className="ml-2 text-xs font-normal text-gray-500">追加: {creators.get(`edition:${ed.id}`)}</span>}
                                     </h3>
                                     {ed.races.length === 0 ? (

@@ -97,11 +97,12 @@ function UnlinkedGroup({ group, members, catalog, onLinked }: {
             if (!ed || ed.held_on !== group.date || Math.abs(r.distance_km - group.distance) > DISTANCE_TOLERANCE_KM) return []
             const ev = catalog.events?.find(e => e.id === ed.event_id)
             if (!ev) return []
-            const n = normalizeEventName(ev.name)
-            if (!names.some(x => x.includes(n) || n.includes(x))) return []
+            // その回の当時の名前（改名前の回）でも比べる
+            const evNames = [ev.name, ed.name].filter((x): x is string => !!x).map(normalizeEventName)
+            if (!names.some(x => evNames.some(n => x.includes(n) || n.includes(x)))) return []
             const option: RaceOption = {
-                id: r.id, editionId: ed.id, eventName: ev.name, eventType: ev.type, heldOn: ed.held_on, distanceKm: r.distance_km,
-                label: `${ev.name} ${formatDate(ed.held_on)} ${r.name}`,
+                id: r.id, editionId: ed.id, eventName: ed.name ?? ev.name, eventType: ev.type, heldOn: ed.held_on, distanceKm: r.distance_km,
+                label: `${ed.name ?? ev.name} ${formatDate(ed.held_on)} ${r.name}`,
             }
             return [option]
         })

@@ -8,7 +8,8 @@ import { formatDistance } from "@/lib/splits"
 import type { RaceOption } from "@/components/RaceInput"
 
 export type CatalogEvent = { id: number; name: string; type: string; prefecture: string | null }
-export type CatalogEdition = { id: number; event_id: number; held_on: string | null; edition_number: number | null }
+// name: 当時の大会名（改名した大会の昔の回。NULL なら大会の名前と同じ）
+export type CatalogEdition = { id: number; event_id: number; held_on: string | null; edition_number: number | null; name: string | null }
 export type CatalogRace = { id: number; event_edition_id: number; name: string; distance_km: number }
 
 // 最初の一覧に出す範囲（記録を登録するのはほとんどが終わったばかりの大会のため）
@@ -54,7 +55,7 @@ export function useCatalog() {
         const supabase = createClient()
         const [ev, ed, ra] = await Promise.all([
             supabase.from("events").select("id, name, type, prefecture"),
-            supabase.from("event_editions").select("id, event_id, held_on, edition_number"),
+            supabase.from("event_editions").select("id, event_id, held_on, edition_number, name"),
             supabase.from("races").select("id, event_edition_id, name, distance_km"),
         ])
         const err = ev.error ?? ed.error ?? ra.error
@@ -125,6 +126,12 @@ export function RacePicker({ value, onChange, allowCreate = true }: {
         })
         return m
     }, [editions, aheadTo, estimateFrom])
+    // 大会ごとの旧称（開催回の当時の名前）。検索と「似た名前」の判定に含める
+    const aliases = useMemo(() => {
+        const m = new Map<number, string[]>()
+        for (const ed of editions) if (ed.name && !(m.get(ed.event_id) ?? []).includes(ed.name)) m.set(ed.event_id, [...(m.get(ed.event_id) ?? []), ed.name])
+        return m
+    }, [editions])
     const searching = query.trim() !== ""
     const eventOptions = useMemo(() => {
         const q = normalizeKana(query)
@@ -134,19 +141,22 @@ export function RacePicker({ value, onChange, allowCreate = true }: {
         }
         return (events ?? [])
             .filter(e => searching
-                ? normalizeKana(e.name).includes(q) || normalizeEventName(e.name).includes(normalizeEventName(query))
+                ? [e.name, ...(aliases.get(e.id) ?? [])].some(n => normalizeKana(n).includes(q) || normalizeEventName(n).includes(normalizeEventName(query)))
                 : showAll || inRange(e.id))
             .sort((a, b) => (eventDates.get(b.id)?.date ?? "").localeCompare(eventDates.get(a.id)?.date ?? "") || a.name.localeCompare(b.name, "ja"))
             .slice(0, showAll && !searching ? 300 : 50)
-    }, [events, query, searching, showAll, eventDates, recentFrom, estimateFrom])
+    }, [events, query, searching, showAll, eventDates, recentFrom, estimateFrom, aliases])
     // 選んだ大会の推定日（今年の開催日が未登録のとき）
     const estimate = eventId != null && eventDates.get(eventId)?.estimated ? eventDates.get(eventId)! : null
     // 追加しようとしている大会名に似た既存の大会
     const similarEvents = useMemo(() => {
         const n = normalizeEventName(newEvent.name)
         if (n.length < 2) return []
-        return (events ?? []).filter(e => { const m = normalizeEventName(e.name); return m.includes(n) || n.includes(m) }).slice(0, 5)
-    }, [events, newEvent.name])
+        return (events ?? []).filter(e => [e.name, ...(aliases.get(e.id) ?? [])].some(name => {
+            const m = normalizeEventName(name)
+            return m.includes(n) || n.includes(m)
+        })).slice(0, 5)
+    }, [events, newEvent.name, aliases])
 
     // 開催日: 今日までの日付を近い順に先に、その後ろにこれから先の日付（近い順）、開催日未定は最後
     const editionOptions = editions.filter(e => e.event_id === eventId).sort((a, b) => {
@@ -161,8 +171,9 @@ export function RacePicker({ value, onChange, allowCreate = true }: {
     const emit = (r: CatalogRace | null, ed = edition, ev = event) => {
         if (!r || !ed || !ev) { onChange(null); return }
         onChange({
-            id: r.id, editionId: ed.id, eventName: ev.name, eventType: ev.type, heldOn: ed.held_on, distanceKm: r.distance_km,
-            label: `${ev.name} ${ed.held_on ? formatDate(ed.held_on) : "開催日未定"} ${r.name}`,
+            // 記録の大会名は、その回の当時の名前（改名前の回なら旧称）
+            id: r.id, editionId: ed.id, eventName: ed.name ?? ev.name, eventType: ev.type, heldOn: ed.held_on, distanceKm: r.distance_km,
+            label: `${ed.name ?? ev.name} ${ed.held_on ? formatDate(ed.held_on) : "開催日未定"} ${r.name}`,
         })
     }
 
@@ -244,6 +255,7 @@ export function RacePicker({ value, onChange, allowCreate = true }: {
                             {eventOptions.map(e => (
                                 <button key={e.id} type="button" onClick={() => chooseEvent(e.id)} className={chip(false)}>
                                     {e.name}
+                                    {aliases.has(e.id) && <span className="ml-1 text-xs opacity-75">（旧称: {aliases.get(e.id)!.join("・")}）</span>}
                                     {eventDates.has(e.id) && (() => {
                                         // 推定の候補は、推定日ではなく前回の実際の開催日を「（昨年）」付きで出す
                                         const d = eventDates.get(e.id)!
@@ -303,6 +315,7 @@ export function RacePicker({ value, onChange, allowCreate = true }: {
                         {editionOptions.map(ed => (
                             <button key={ed.id} type="button" onClick={() => chooseEdition(ed.id)} className={chip(ed.id === editionId)}>
                                 {ed.held_on ? formatDate(ed.held_on) : "開催日未定"}{ed.edition_number != null && ` 第${ed.edition_number}回`}
+                                {ed.name && <span className="ml-1 text-xs opacity-75">（当時: {ed.name}）</span>}
                             </button>
                         ))}
                         {editionOptions.length === 0 && <span className="text-gray-500">開催日がまだ登録されていません</span>}

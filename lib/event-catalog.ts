@@ -16,7 +16,8 @@ export type CatalogEventRow = {
     entry_method: EntryMethod | null
     entry_difficulty: EntryDifficulty | null
 }
-export type CatalogEditionRow = { id: number; event_id: number; held_on: string | null; edition_number: number | null }
+// name: 当時の大会名（改名した大会の昔の回。NULL なら大会の名前と同じ）
+export type CatalogEditionRow = { id: number; event_id: number; held_on: string | null; edition_number: number | null; name: string | null }
 export type CatalogRaceRow = {
     id: number
     event_edition_id: number
@@ -40,13 +41,15 @@ export type EventCatalog = {
     // 自分の記録がある大会
     myEvents: Set<number>
     noteCounts: Map<number, number>
+    // 大会ごとの旧称（開催回の当時の名前）
+    aliases: Map<number, string[]>
 }
 
 export async function loadEventCatalog(supabase: SupabaseClient): Promise<EventCatalog> {
     const { data: { user } } = await supabase.auth.getUser()
     const [events, editions, races, plans, results, notes, mine] = await Promise.all([
         fetchAll<CatalogEventRow>((f, t) => supabase.from("events").select("id, name, type, prefecture, entry_method, entry_difficulty").order("id").range(f, t)),
-        fetchAll<CatalogEditionRow>((f, t) => supabase.from("event_editions").select("id, event_id, held_on, edition_number").order("id").range(f, t)),
+        fetchAll<CatalogEditionRow>((f, t) => supabase.from("event_editions").select("id, event_id, held_on, edition_number, name").order("id").range(f, t)),
         fetchAll<CatalogRaceRow>((f, t) => supabase.from("races").select("id, event_edition_id, name, distance_km, entry_start_at, entry_end_at, jaaf_certified").order("id").range(f, t)),
         fetchAll<PlanRow>((f, t) => supabase.from("public_race_plans").select("event_edition_id, status, recruiting, is_me").order("event_edition_id").range(f, t)),
         fetchAll<{ event_id: number | null; race_id: number | null }>((f, t) => supabase.from("public_results").select("event_id, race_id").not("race_id", "is", null).order("id").range(f, t)),
@@ -76,6 +79,10 @@ export async function loadEventCatalog(supabase: SupabaseClient): Promise<EventC
             return ev != null ? [ev] : []
         })),
         noteCounts: count(notes.map(n => n.event_id)),
+        aliases: editions.reduce((m, ed) => {
+            if (ed.name && !(m.get(ed.event_id) ?? []).includes(ed.name)) m.set(ed.event_id, [...(m.get(ed.event_id) ?? []), ed.name])
+            return m
+        }, new Map<number, string[]>()),
     }
 }
 
@@ -179,8 +186,10 @@ const inMonths = (date: string, f: EventFilter) => {
 // 大会そのものの条件（名前・地域・種別・例年のエントリー・メンバーの出場）
 function matchEventBase(c: EventCatalog, ev: CatalogEventRow, f: EventFilter) {
     if (f.q) {
+        // 旧称（改名前の名前）でも見つかるようにする
         const q = normalizeKana(f.q.trim())
-        if (!normalizeKana(ev.name).includes(q) && !normalizeEventName(ev.name).includes(normalizeEventName(f.q))) return false
+        const names = [ev.name, ...(c.aliases.get(ev.id) ?? [])]
+        if (!names.some(n => normalizeKana(n).includes(q) || normalizeEventName(n).includes(normalizeEventName(f.q)))) return false
     }
     if (f.pref ? !samePrefecture(ev.prefecture, f.pref) : f.region && regionOf(ev.prefecture) !== f.region) return false
     if (f.type && ev.type !== f.type) return false

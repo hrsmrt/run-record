@@ -70,6 +70,7 @@ export function EditionListClient() {
                                                 {ed.held_on ? <>{formatYmd(ed.held_on)}（<span className={holiday || weekdayOf(ed.held_on) === "日" ? "text-red-600" : weekdayOf(ed.held_on) === "土" ? "text-blue-600" : ""}>{weekdayOf(ed.held_on)}</span>）</> : "未定"}
                                             </span>
                                             <Link href={`/event/${ev.id}#edition-${ed.id}`} className="font-bold text-blue-600 hover:underline">{ev.name}</Link>
+                                            {ed.name && <span className="text-xs text-gray-600">（当時: {ed.name}）</span>}
                                             {ed.edition_number != null && <span className="text-xs text-gray-600">第{ed.edition_number}回</span>}
                                             <span className="text-xs text-gray-600">{ev.prefecture ?? ""}</span>
                                             <DistanceChips races={own.length > 0 ? own : racesOfEvent(catalog, ev.id)} />

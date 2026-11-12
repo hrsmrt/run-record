@@ -64,6 +64,7 @@
 
 ### データ構成
 - **大会情報**: `events`（大会）→ `event_editions`（開催回）→ `races`（種目、`distance_km` は `NUMERIC(8,4)`）
+  - 改名した大会（`sql/2026-11-12_edition_names.sql`）: 大会は1つにまとめ、昔の回に `event_editions.name`（当時の大会名、NULL なら大会の名前と同じ）。記録の大会名（`public_results.race_name`）は当時の名前、大会詳細は「旧称: 〇〇（2015〜2019年）」と回ごとの「（当時: 〇〇）」。旧称は大会情報の絞り込み・`RacePicker`・紐付けのない記録の候補で検索に含める。入力は管理画面の開催日編集。`admin_merge_events(p_from, p_into, p_keep_old_name DEFAULT true)` は消す方の名前を移す回の当時の名前として残す（重複をまとめる画面のチェック）
 - **結果**: `results`
   - `race_id` で `races` に紐付け（NULL 可。大会情報に未登録の大会は紐付けなしで `race_name`・`date` を使う）。`ON DELETE RESTRICT` のため、結果が紐付いた種目・開催回は削除できない
   - `clever_index` は RUNNET のクレバー指数の転記（`NUMERIC`、精度指定なし）
@@ -178,6 +179,7 @@
 - `2026-11-12_event_notes_tags.sql` - メモの項目を複数に（スタート・当日の流れを追加）、種目のスタート時刻・陸連公認
 - 画面の「幹事」を「記録係」に（外向けのフッター・このサイトについては「同大会参加者」）
 - 大会一覧・開催日順・カレンダーを共通の絞り込みとタブで作り直し（DB の変更なし）
+- `2026-11-12_edition_names.sql` - 改名した大会の当時の大会名、`public_results` の大会名、まとめるときに旧名を残す
 - 今後の候補: 記録の編集（`/records/edit`）でも大会・開催日・種目を追加できるようにする（今の `RaceInput` は登録済みから選ぶだけ）
 
 ### 2026-11-11: 掲示板のルート案、日程調整からの引き継ぎ

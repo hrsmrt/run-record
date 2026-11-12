@@ -14,6 +14,8 @@ const formatDate = (d: string | null) => d ? `${d.substring(0, 4)}/${d.substring
 // 管理者: 重複した大会・開催回・種目を1つにまとめる。消す方に付いている記録などを残す方へ付け替えてから消す
 export function MergeClient() {
     const { events, editions, races, error, reload } = useCatalog()
+    // 大会をまとめるとき、消す方の名前を開催回の当時の名前として残す（改名した大会向け）
+    const [keepOldName, setKeepOldName] = useState(true)
     const [kind, setKind] = useState<Kind>("event")
     const [eventId, setEventId] = useState<number | null>(null)
     const [editionId, setEditionId] = useState<number | null>(null)
@@ -83,7 +85,9 @@ export function MergeClient() {
         if (!confirm(`「${fromLabel}」を「${intoLabel}」にまとめ、「${fromLabel}」を削除します。元に戻せません。よろしいですか？`)) return
         setBusy(true)
         const fn = kind === "event" ? "admin_merge_events" : kind === "edition" ? "admin_merge_editions" : "admin_merge_races"
-        const { error } = await createClient().rpc(fn, { p_from: fromId, p_into: intoId })
+        const { error } = await createClient().rpc(fn, kind === "event"
+            ? { p_from: fromId, p_into: intoId, p_keep_old_name: keepOldName }
+            : { p_from: fromId, p_into: intoId })
         setBusy(false)
         if (error) { setMessage({ text: `まとめられませんでした: ${error.message}`, isError: true }); return }
         setMessage({ text: `まとめました（「${fromLabel}」は削除しました）`, isError: false })
@@ -155,6 +159,15 @@ export function MergeClient() {
                         </select>
                         <span>にまとめる</span>
                     </div>
+                )}
+                {kind === "event" && (
+                    <label className="flex items-start gap-1">
+                        <input type="checkbox" checked={keepOldName} onChange={e => setKeepOldName(e.target.checked)} className="mt-1" />
+                        <span>
+                            消す方の大会名を、移す開催回の「当時の大会名」として残す
+                            <span className="block text-xs text-gray-500">大会が改名したときに使います。昔の回の記録は当時の名前で表示され、旧称でも検索できます。同じ名前の表記ゆれをまとめるときは外してください。</span>
+                        </span>
+                    </label>
                 )}
                 {preview && (
                     <p className="text-gray-700">

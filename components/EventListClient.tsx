@@ -68,6 +68,7 @@ export function EventListClient() {
                                     <li key={ev.id} className="bg-white text-black px-2 py-1.5 text-sm flex flex-col gap-0.5">
                                         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                                             <Link href={`/event/${ev.id}`} className="font-bold text-blue-600 hover:underline">{ev.name}</Link>
+                                            {catalog.aliases.has(ev.id) && <span className="text-xs text-gray-600">（旧称: {catalog.aliases.get(ev.id)!.join("・")}）</span>}
                                             <span className="text-xs text-gray-600">{ev.prefecture ?? "県未設定"}・{ev.type}</span>
                                             <DistanceChips races={races} />
                                             {catalog.myEvents.has(ev.id) && <span className="text-xs px-1 rounded bg-blue-50 text-blue-800">出場したことあり</span>}
