@@ -11,7 +11,7 @@ export default function AddRecordForm() {
         <p className="mt-2 text-black">
           形式: time,distance(km),race_name,race_type,comment(ヘッダー無し)
         </p>
-        <p>time: hh:mm:ss または hh:mm:ss.aa</p>
+        <p>time: hh:mm:ss または hh:mm:ss.aa。完走以外は DNF（DNF 30 で30kmまで）・DNS・DQ・記録なし</p>
         <p>race_type: road, trail, track, time</p>
         <p>date: YYYY-MM-DD</p>
 

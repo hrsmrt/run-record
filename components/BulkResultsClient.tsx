@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
-import { formatTime } from "@/lib/utils"
+import { type ResultStatus, compareResult, formatResult, parseResultText } from "@/lib/result-status"
 import { formatDistance, parseElapsed } from "@/lib/splits"
 import { useUnsavedWarning } from "@/lib/use-unsaved-warning"
 import { RaceOption, useRaceOptions } from "@/components/RaceInput"
@@ -27,7 +27,9 @@ type ExistingResult = {
     id: number
     user_id: string
     created_by: string | null
-    time_ms: number
+    time_ms: number | null
+    status: ResultStatus
+    dnf_km: number | null
     clever_index: number | null
     overall_rank: number | null
     division: string | null
@@ -123,11 +125,10 @@ export function BulkResultsClient({ editionId }: { editionId?: number }) {
     const loadExisting = async (raceId: number) => {
         const { data, error } = await createClient()
             .from("results")
-            .select("id, user_id, created_by, time_ms, clever_index, overall_rank, division, division_rank, comment")
+            .select("id, user_id, created_by, time_ms, status, dnf_km, clever_index, overall_rank, division, division_rank, comment")
             .eq("race_id", raceId)
-            .order("time_ms")
         if (error) { setMessage({ text: `登録済みの記録の読み込みに失敗しました: ${error.message}`, isError: true }); return }
-        setExisting((data ?? []) as ExistingResult[])
+        setExisting(((data ?? []) as ExistingResult[]).sort(compareResult))
     }
 
     const selectRace = (option: RaceOption | null) => {
@@ -201,8 +202,9 @@ export function BulkResultsClient({ editionId }: { editionId?: number }) {
             if (!r.userId) errors.push(`${n}行目: メンバーを選んでください`)
             else if (seen.has(r.userId)) errors.push(`${n}行目: ${memberName(r.userId)} が重複しています`)
             seen.add(r.userId)
-            const ms = parseElapsed(r.timeStr)
-            if (ms === null || ms <= 0) errors.push(`${n}行目: タイムは 3:12:34 または 45:12 の形式で入力してください`)
+            // タイムの欄には DNF・DNS・DQ・記録なし も書ける
+            const result = parseResultText(r.timeStr, parseElapsed)
+            if (!result) errors.push(`${n}行目: タイムは 3:12:34 または 45:12 の形式か、DNF（DNF 30 で30kmまで）・DNS・DQ・記録なし で入力してください`)
             if (r.cleverStr !== "" && isNaN(Number(r.cleverStr))) errors.push(`${n}行目: クレバー指数は数値で入力してください`)
             const ranks = {
                 overall_rank: parseCount(r.overallRankStr),
@@ -217,7 +219,9 @@ export function BulkResultsClient({ editionId }: { editionId?: number }) {
                 date: race.heldOn,
                 distance: race.distanceKm,
                 race_type: raceType,
-                time_ms: ms ?? 0,
+                status: result?.status ?? "finished",
+                time_ms: result?.time_ms ?? null,
+                dnf_km: result?.dnf_km ?? null,
                 clever_index: r.cleverStr === "" ? null : Number(r.cleverStr),
                 ...ranks,
                 division: r.division.trim() || null,
@@ -314,7 +318,7 @@ export function BulkResultsClient({ editionId }: { editionId?: number }) {
                                     {existing.map(e => (
                                         <tr key={e.id} className="border-b">
                                             <td className="px-2 py-0.5">{memberName(e.user_id)}</td>
-                                            <td className="px-2 py-0.5 text-right font-mono">{formatTime(e.time_ms)}</td>
+                                            <td className="px-2 py-0.5 text-right font-mono">{formatResult(e)}</td>
                                             <td className="px-2 py-0.5 text-right">{e.clever_index ?? ""}</td>
                                             <td className="px-2 py-0.5 text-right">{formatRank(e.overall_rank)}</td>
                                             <td className="px-2 py-0.5">{e.division ?? ""} {formatRank(e.division_rank)}</td>
@@ -359,7 +363,7 @@ export function BulkResultsClient({ editionId }: { editionId?: number }) {
                                 </thead>
                                 <tbody>
                                     {rows.map(r => {
-                                        const timeInvalid = r.timeStr !== "" && parseElapsed(r.timeStr) === null
+                                        const timeInvalid = r.timeStr !== "" && parseResultText(r.timeStr, parseElapsed) === null
                                         return (
                                             <tr key={r.key} className="border-b">
                                                 <td className="px-2 py-1">
@@ -380,6 +384,7 @@ export function BulkResultsClient({ editionId }: { editionId?: number }) {
                                                     <input
                                                         value={r.timeStr}
                                                         placeholder="3:12:34"
+                                                        title="完走以外は DNF（DNF 30 で30kmまで）・DNS・DQ・記録なし と書けます"
                                                         onChange={e => updateRow(r.key, { timeStr: e.target.value })}
                                                         className={`w-24 border rounded px-1 py-0.5 font-mono ${timeInvalid ? "border-red-500" : ""}`}
                                                     />
@@ -471,7 +476,7 @@ export function BulkResultsClient({ editionId }: { editionId?: number }) {
                 <p className={`mt-3 text-sm ${message.isError ? "text-red-600" : "text-green-700"}`}>{message.text}</p>
             )}
             <p className="mt-6 text-xs text-gray-500">
-                ※ 大会名・日付・距離は選んだレースの情報で登録されます。タイムはネットタイムを推奨（グロスは備考へ）。
+                ※ 大会名・日付・距離は選んだレースの情報で登録されます。タイムはネットタイムを推奨（グロスは備考へ）。完走以外はタイムの欄に DNF（DNF 30 で30kmまで）・DNS・DQ・記録なし と書きます。
                 「（アカウントなし）」はアカウントを持たない OBOG です（入学年度はメンバー編集で後から直せます）。
                 順位は大会の公式順位をそのまま、部門名は大会の表記のまま入力します（部門のエントリー数は種目編集で登録）。
             </p>

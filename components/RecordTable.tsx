@@ -2,7 +2,7 @@
 
 import { Fragment, useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
-import { formatTime } from "@/lib/utils"
+import { type ResultStatus, compareResult, formatResult, isFinished } from "@/lib/result-status"
 import Link from "next/link"
 import { SplitTableLoader } from "@/components/SplitTable"
 import { parseComment } from "@/components/CommentText"
@@ -11,7 +11,9 @@ import { EnrollmentTag } from "@/components/EnrollmentTag"
 type RaceRecord = {
   id: number
   name: string
-  time_ms: number
+  time_ms: number | null
+  status: ResultStatus
+  dnf_km: number | null
   race_name: string
   distance: number
   date: string
@@ -104,12 +106,17 @@ export default function RecordTable({ view, genderFilter, distance, raceType, da
 
   const sortedRecords = [...records]
     .sort((a, b) => {
+      // 記録順: 完走以外（DNF・DNS など）は向きに関係なく下にまとめる
+      if (sortKey === "time_ms") {
+        if (!isFinished(a) || !isFinished(b)) return compareResult(a, b)
+        return sortAsc ? a.time_ms! - b.time_ms! : b.time_ms! - a.time_ms!
+      }
       const valA = a[sortKey]
       const valB = b[sortKey]
       if (valA === valB) {
         // 日付順のときは、同じ日の中で大会ごとにまとめ、大会内は距離の長い順・タイム順
         if (sortKey === "date") {
-          return a.race_name.localeCompare(b.race_name) || b.distance - a.distance || a.time_ms - b.time_ms
+          return a.race_name.localeCompare(b.race_name) || b.distance - a.distance || compareResult(a, b)
         }
         return 0
       }
@@ -197,7 +204,7 @@ export default function RecordTable({ view, genderFilter, distance, raceType, da
                     {r.name}<EnrollmentTag year={r.enrollment_year} />
                   </td>
                   <td className="px-1 md:px-3 py-0 text-right">
-                    {formatTime(r.time_ms)}
+                    {formatResult(r)}
                   </td>
                   <td className="px-1 md:px-3 py-0 text-right whitespace-normal">
                     {r.event_id != null

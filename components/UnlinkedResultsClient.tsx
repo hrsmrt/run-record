@@ -3,12 +3,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { fetchAll } from "@/lib/fetch-all"
-import { formatTime } from "@/lib/utils"
+import { type ResultStatus, formatResult } from "@/lib/result-status"
 import { formatDistance } from "@/lib/splits"
 import { RacePicker, normalizeEventName, useCatalog } from "@/components/RacePicker"
 import type { RaceOption } from "@/components/RaceInput"
 
-type UnlinkedResult = { id: number; user_id: string; race_name: string; date: string; distance: number; race_type: string | null; time_ms: number }
+type UnlinkedResult = { id: number; user_id: string; race_name: string; date: string; distance: number; race_type: string | null; time_ms: number | null; status: ResultStatus; dnf_km: number | null }
 type Member = { user_id: string; name: string | null; pending_auth: boolean }
 
 // 大会名（表記ゆれを無視）・日付・距離が同じ記録のまとまり
@@ -32,7 +32,7 @@ export function UnlinkedResultsClient() {
         try {
             const [rows, { data: memberData, error: memberError }] = await Promise.all([
                 fetchAll<UnlinkedResult>((from, to) => supabase.from("results")
-                    .select("id, user_id, race_name, date, distance, race_type, time_ms").is("race_id", null).order("id").range(from, to)),
+                    .select("id, user_id, race_name, date, distance, race_type, time_ms, status, dnf_km").is("race_id", null).order("id").range(from, to)),
                 supabase.from("admin_members").select("user_id, name, pending_auth"),
             ])
             if (memberError) throw new Error(memberError.message)
@@ -153,7 +153,7 @@ function UnlinkedGroup({ group, members, catalog, onLinked }: {
             </div>
             <p className="text-xs text-gray-700">
                 {group.results.map((r, i) => (
-                    <span key={r.id}>{i > 0 && "、"}{nameOf(r.user_id)} {formatTime(r.time_ms)}</span>
+                    <span key={r.id}>{i > 0 && "、"}{nameOf(r.user_id)} {formatResult(r)}</span>
                 ))}
             </p>
 

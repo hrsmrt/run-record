@@ -6,12 +6,15 @@ import { createClient } from "@/lib/supabase/client"
 import { RaceDatalist, RaceInput, useRaceOptions } from "@/components/RaceInput"
 import { MemberSelect } from "@/components/MemberSelect"
 import { getAdminState } from "@/lib/admin"
+import { RESULT_STATUSES, RESULT_STATUS_LABELS, type ResultStatus, compareResult, isFinished, timeAllowed, timeRequired } from "@/lib/result-status"
 import { countToStr, parseCount } from "@/lib/ranks"
 
 type Record = {
   id: number
   name: string
-  time_ms: number
+  time_ms: number | null
+  status: ResultStatus
+  dnf_km: number | null
   race_name: string
   race_type: string
   distance: number
@@ -28,11 +31,16 @@ type Record = {
 // 入力欄の文字列（保存時に数値へ変換）
 type RecordWithTimeStr = Record & {
   timeStr: string
+  dnfKmStr: string
   cleverStr: string
   overallRankStr: string
   genderRankStr: string
   divisionRankStr: string
 }
+
+// 入力欄の見た目（枠線と白背景で、入力できる欄だと分かるように）。大会情報に紐付いた大会名・日付は灰色で編集不可
+const field = "px-1 border rounded bg-white"
+const readOnlyField = "px-1 border rounded bg-gray-100 text-gray-500"
 
 const RANK_FIELDS = [
   ["overallRankStr", "総合順位"],
@@ -107,7 +115,8 @@ export function EditRecordsClient() {
       const { data } = await query
       const formatted = (data ?? []).map(r => ({
         ...r,
-        timeStr: msToTime(r.time_ms),
+        timeStr: r.time_ms == null ? "" : msToTime(r.time_ms),
+        dnfKmStr: r.dnf_km == null ? "" : String(Number(r.dnf_km)),
         cleverStr: r.clever_index == null ? "" : String(r.clever_index),
         overallRankStr: countToStr(r.overall_rank),
         genderRankStr: countToStr(r.gender_rank),
@@ -129,6 +138,8 @@ export function EditRecordsClient() {
   }
 
   const sortedRecords = [...records].sort((a,b) => {
+    // 時間順: 完走以外（DNF・DNS など）は向きに関係なく下にまとめる
+    if (sortKey === "time_ms" && (!isFinished(a) || !isFinished(b))) return compareResult(a, b)
     const valA = a[sortKey], valB = b[sortKey]
     if (valA === valB) return 0
     if (valA == null) return 1
@@ -141,7 +152,10 @@ export function EditRecordsClient() {
   const handleSaveAll = async () => {
     const updates = records.map(r => ({
       id: r.id,
-      time_ms: timeToMs(r.timeStr),
+      status: r.status,
+      // タイムは完走なら必須、DNF・DQ は任意、記録なし・DNS は入れない
+      time_ms: !timeAllowed(r.status) || r.timeStr.trim() === "" ? null : timeToMs(r.timeStr.trim()),
+      dnf_km: r.status === "dnf" && r.dnfKmStr.trim() !== "" ? Number(r.dnfKmStr) : null,
       distance: r.distance,
       race_name: r.race_name,
       race_type: r.race_type,
@@ -157,12 +171,16 @@ export function EditRecordsClient() {
     const errors: string[] = []
 
     for (const u of updates) {
-      if (isNaN(u.time_ms)) { errors.push(`ID ${u.id} の時間が不正です`); continue }
+      if (u.time_ms == null && timeRequired(u.status)) { errors.push(`ID ${u.id}: 完走はタイムを入れてください`); continue }
+      if (u.time_ms != null && isNaN(u.time_ms)) { errors.push(`ID ${u.id}: タイムは hh:mm:ss の形で入れてください（DNF の距離は「km まで」の欄へ）`); continue }
+      if (u.dnf_km != null && !(u.dnf_km > 0)) { errors.push(`ID ${u.id}: DNF の距離は km の数値で入れてください`); continue }
       if (isNaN(u.distance) || u.distance <= 0) { errors.push(`ID ${u.id} の距離を入力してください`); continue }
       if (u.clever_index !== null && isNaN(u.clever_index)) { errors.push(`ID ${u.id} のクレバー指数が不正です`); continue }
       if ([u.overall_rank, u.gender_rank, u.division_rank].includes(undefined)) { errors.push(`ID ${u.id} の順位は正の整数で入力してください`); continue }
       const { error } = await supabase.from("results").update({
+        status: u.status,
         time_ms: u.time_ms,
+        dnf_km: u.dnf_km,
         distance: u.distance,
         race_name: u.race_name,
         race_type: u.race_type,
@@ -238,12 +256,13 @@ export function EditRecordsClient() {
       {!raceOptions ? <p>読み込み中...</p> : (
       <div className="overflow-x-auto">
         <RaceDatalist id="race-options" options={raceOptions} />
-        <table className="w-full min-w-[1700px] table-auto text-left border-collapse">
+        {/* スマホでは文字を小さくして、1画面に入る列を増やす */}
+        <table className="w-full min-w-[1600px] md:min-w-[2000px] table-auto text-left border-collapse text-xs md:text-base">
           <thead>
             <tr>
               <th className="px-2 py-1">ラップ</th>
               <th className="px-2 py-1 cursor-pointer" onClick={() => handleSort("time_ms")}>
-                時間 {sortKey==="time_ms" ? (sortAsc?"↑":"↓"):""}
+                結果・時間 {sortKey==="time_ms" ? (sortAsc?"↑":"↓"):""}
               </th>
               <th className="px-2 py-1">大会情報</th>
               <th className="px-2 py-1 cursor-pointer" onClick={() => handleSort("race_name")}>
@@ -274,7 +293,36 @@ export function EditRecordsClient() {
             {sortedRecords.map(record => (
               <tr key={record.id}>
                 <td className="px-2 py-1"><Link href={`/records/${record.id}/splits`} className="text-blue-600 hover:underline">入力</Link></td>
-                <td className="px-2 py-1"><input className="w-28 px-1" value={record.timeStr} onChange={e => setRecords(prev => prev.map(r => r.id===record.id?{...r,timeStr:e.target.value}:r))}/></td>
+                <td className="px-2 py-1 whitespace-nowrap">
+                  <select
+                    value={record.status}
+                    onChange={e => {
+                      const status = e.target.value as ResultStatus
+                      // 完走以外に変えたらタイムを空にする（99:59:59 などで仮に入れていた値を引き継がない）
+                      updateRow(record.id, { status, ...(status === "finished" ? {} : { timeStr: "" }) })
+                    }}
+                    className={`mr-1 ${field}`}
+                    aria-label="結果"
+                  >
+                    {RESULT_STATUSES.map(st => <option key={st} value={st}>{RESULT_STATUS_LABELS[st]}</option>)}
+                  </select>
+                  {timeAllowed(record.status) && (
+                    <input
+                      className={`w-28 ${field}`}
+                      value={record.timeStr}
+                      placeholder={record.status === "dnf" ? "棄権時（任意）" : record.status === "dq" ? "公式（任意）" : "1:23:45"}
+                      title={record.status === "finished" ? "hh:mm:ss" : "hh:mm:ss。分からなければ空欄"}
+                      onChange={e => updateRow(record.id, { timeStr: e.target.value })}
+                      aria-label="時間"
+                    />
+                  )}
+                  {record.status === "dnf" && (
+                    <label className="ml-1 text-sm">
+                      <input className={`w-14 ${field}`} inputMode="decimal" value={record.dnfKmStr} placeholder="任意" onChange={e => updateRow(record.id, { dnfKmStr: e.target.value })} aria-label="どこまで走ったか（km）"/>
+                      km まで
+                    </label>
+                  )}
+                </td>
                 <td className="px-2 py-1">
                   <RaceInput
                     listId="race-options"
@@ -286,10 +334,10 @@ export function EditRecordsClient() {
                     className="w-72 px-1 border rounded"
                   />
                 </td>
-                <td className="px-2 py-1"><input className={`w-full px-1 ${record.race_id ? "bg-gray-100 text-gray-500" : ""}`} readOnly={record.race_id != null} value={record.race_name} onChange={e => setRecords(prev => prev.map(r => r.id===record.id?{...r,race_name:e.target.value}:r))}/></td>
-                <td className="px-2 py-1"><input className="w-20 px-1" inputMode="decimal" value={Number.isNaN(record.distance) ? "" : record.distance} onChange={e => setRecords(prev => prev.map(r => r.id===record.id?{...r,distance:e.target.value.trim() === "" ? NaN : Number(e.target.value)}:r))}/></td>
+                <td className="px-2 py-1"><input className={`w-64 ${record.race_id ? readOnlyField : field}`} readOnly={record.race_id != null} value={record.race_name} onChange={e => setRecords(prev => prev.map(r => r.id===record.id?{...r,race_name:e.target.value}:r))}/></td>
+                <td className="px-2 py-1"><input className={`w-20 ${field}`} inputMode="decimal" value={Number.isNaN(record.distance) ? "" : record.distance} onChange={e => setRecords(prev => prev.map(r => r.id===record.id?{...r,distance:e.target.value.trim() === "" ? NaN : Number(e.target.value)}:r))}/></td>
                 <td className="px-2 py-1">
-                  <select value={record.race_type} onChange={e => setRecords(prev => prev.map(r => r.id===record.id?{...r,race_type:e.target.value}:r))}>
+                  <select className={field} value={record.race_type} onChange={e => setRecords(prev => prev.map(r => r.id===record.id?{...r,race_type:e.target.value}:r))}>
                     <option value=""></option>
                     <option value="road">ロード</option>
                     <option value="trail">トレイル</option>
@@ -297,14 +345,14 @@ export function EditRecordsClient() {
                     <option value="time">時間走</option>
                   </select>
                 </td>
-                <td className="px-2 py-1 w-36"><input type="date" className={`w-36 px-1 ${record.race_id ? "bg-gray-100 text-gray-500" : ""}`} readOnly={record.race_id != null} value={record.date} onChange={e => setRecords(prev => prev.map(r => r.id===record.id?{...r,date:e.target.value}:r))}/></td>
-                <td className="px-2 py-1"><input className="w-20 px-1" inputMode="decimal" value={record.cleverStr} onChange={e => updateRow(record.id, { cleverStr: e.target.value })}/></td>
-                {RANK_FIELDS.map(([field]) => (
-                  <td key={field} className="px-2 py-1"><input className="w-20 px-1" inputMode="numeric" value={record[field]} onChange={e => updateRow(record.id, { [field]: e.target.value })}/></td>
+                <td className="px-2 py-1 w-36"><input type="date" className={`w-36 ${record.race_id ? readOnlyField : field}`} readOnly={record.race_id != null} value={record.date} onChange={e => setRecords(prev => prev.map(r => r.id===record.id?{...r,date:e.target.value}:r))}/></td>
+                <td className="px-2 py-1"><input className={`w-20 ${field}`} inputMode="decimal" value={record.cleverStr} onChange={e => updateRow(record.id, { cleverStr: e.target.value })}/></td>
+                {RANK_FIELDS.map(([rankField]) => (
+                  <td key={rankField} className="px-2 py-1"><input className={`w-20 ${field}`} inputMode="numeric" value={record[rankField]} onChange={e => updateRow(record.id, { [rankField]: e.target.value })}/></td>
                 ))}
-                <td className="px-2 py-1"><input className="w-32 px-1" value={record.division ?? ""} onChange={e => updateRow(record.id, { division: e.target.value })}/></td>
-                <td className="px-2 py-1"><input className="w-20 px-1" inputMode="numeric" value={record.divisionRankStr} onChange={e => updateRow(record.id, { divisionRankStr: e.target.value })}/></td>
-                <td className="px-2 py-1"><input className="w-full px-1" value={record.comment??""} onChange={e => setRecords(prev => prev.map(r => r.id===record.id?{...r,comment:e.target.value}:r))}/></td>
+                <td className="px-2 py-1"><input className={`w-32 ${field}`} value={record.division ?? ""} onChange={e => updateRow(record.id, { division: e.target.value })}/></td>
+                <td className="px-2 py-1"><input className={`w-20 ${field}`} inputMode="numeric" value={record.divisionRankStr} onChange={e => updateRow(record.id, { divisionRankStr: e.target.value })}/></td>
+                <td className="px-2 py-1"><input className={`w-80 ${field}`} value={record.comment??""} onChange={e => setRecords(prev => prev.map(r => r.id===record.id?{...r,comment:e.target.value}:r))}/></td>
                 <td className="px-2 py-1"><button onClick={()=>handleDelete(record.id)} className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700">削除</button></td>
               </tr>
             ))}

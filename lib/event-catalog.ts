@@ -35,7 +35,7 @@ export type EventCatalog = {
     races: CatalogRaceRow[]
     // 開催回ごとのメンバーの予定
     plans: Map<number, PlanRow[]>
-    // メンバーの記録の件数（開催回ごと・大会ごと。非表示のメンバー・紐付けのない記録は数えない）
+    // メンバーの記録の件数（開催回ごと・大会ごと。非表示のメンバー・紐付けのない記録・DNS は数えない）
     editionResults: Map<number, number>
     eventResults: Map<number, number>
     // 自分の記録がある大会
@@ -52,7 +52,7 @@ export async function loadEventCatalog(supabase: SupabaseClient): Promise<EventC
         fetchAll<CatalogEditionRow>((f, t) => supabase.from("event_editions").select("id, event_id, held_on, edition_number, name").order("id").range(f, t)),
         fetchAll<CatalogRaceRow>((f, t) => supabase.from("races").select("id, event_edition_id, name, distance_km, entry_start_at, entry_end_at, jaaf_certified").order("id").range(f, t)),
         fetchAll<PlanRow>((f, t) => supabase.from("public_race_plans").select("event_edition_id, status, recruiting, is_me").order("event_edition_id").range(f, t)),
-        fetchAll<{ event_id: number | null; race_id: number | null }>((f, t) => supabase.from("public_results").select("event_id, race_id").not("race_id", "is", null).order("id").range(f, t)),
+        fetchAll<{ event_id: number | null; race_id: number | null }>((f, t) => supabase.from("public_results").select("event_id, race_id").not("race_id", "is", null).neq("status", "dns").order("id").range(f, t)),
         fetchAll<{ event_id: number }>((f, t) => supabase.from("public_event_notes").select("event_id").order("id").range(f, t)),
         user
             ? fetchAll<{ race_id: number }>((f, t) => supabase.from("results").select("race_id").eq("user_id", user.id).not("race_id", "is", null).order("id").range(f, t))

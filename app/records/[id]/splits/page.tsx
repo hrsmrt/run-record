@@ -1,5 +1,6 @@
 "use client"
 
+import { type ResultStatus, formatResult, isFinished } from "@/lib/result-status"
 import { useState, useEffect, useCallback } from "react"
 import { useParams } from "next/navigation"
 import Link from "next/link"
@@ -15,6 +16,8 @@ type Result = {
     date: string | null
     distance: number | null
     time_ms: number | null
+    status: ResultStatus
+    dnf_km: number | null
 }
 
 type SplitRow = {
@@ -66,7 +69,7 @@ export default function SplitsPage() {
             // 管理者は全員分、それ以外は自分の記録のみ
             let query = supabase
                 .from("results")
-                .select("id, race_name, date, distance, time_ms")
+                .select("id, race_name, date, distance, time_ms, status, dnf_km")
                 .eq("id", resultId)
             if (!adminActive) query = query.eq("user_id", user.id)
             const { data, error } = await query.maybeSingle()
@@ -122,7 +125,7 @@ export default function SplitsPage() {
                 // スタートのロスは空欄（= 0）、ゴールは「ロス + 記録（ネット）」を入れておく
                 timeStr: d === 0
                     ? ""
-                    : d === result.distance && result.time_ms ? formatElapsed((startMs ?? 0) + result.time_ms) : "",
+                    : d === result.distance && isFinished(result) && result.time_ms ? formatElapsed((startMs ?? 0) + result.time_ms) : "",
                 rankStr: "",
             }))
         setRows(prev => [...prev, ...added].sort((a, b) => Number(a.distanceStr) - Number(b.distanceStr)))
@@ -144,7 +147,8 @@ export default function SplitsPage() {
     // スタートのロス（号砲 → スタートライン通過）。ネット = 通過タイム − ロス
     const startMs = parsed.find(r => r.km === 0)?.ms ?? null
     const goal = result?.distance != null ? parsed.find(r => Math.abs(r.km - result.distance!) < 0.001) : undefined
-    const goalNetMismatch = goal?.ms != null && result?.time_ms != null && startMs != null
+    // ゴールのタイムと記録が合っているか（完走した記録だけ。DNF・DQ のタイムはゴールのタイムではない）
+    const goalNetMismatch = goal?.ms != null && result != null && isFinished(result) && result.time_ms != null && startMs != null
         && Math.abs(goal.ms - startMs - result.time_ms) >= 1000
 
     const ordered = [...parsed]
@@ -220,7 +224,7 @@ export default function SplitsPage() {
                 {result.race_name}
                 {result.date && `（${result.date.replaceAll("-", "/")}）`}
                 {result.distance != null && ` ${formatDistance(result.distance)}`}
-                {result.time_ms != null && ` 記録 ${formatElapsed(result.time_ms)}`}
+                {isFinished(result) ? result.time_ms != null && ` 記録 ${formatElapsed(result.time_ms)}` : ` ${formatResult(result)}`}
             </p>
 
             <div className="flex flex-wrap items-center gap-2 mb-3 text-sm">

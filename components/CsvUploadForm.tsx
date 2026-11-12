@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { parseResultText } from "@/lib/result-status";
 
 type CsvRecord = {
   time: string;
@@ -69,9 +70,20 @@ const records = lines.map((line, idx) => {
       return;
     }
 
-    const rows = csvRecords.map(r => ({
+    // タイムの列には DNF（DNF 30 で30kmまで）・DNS・DQ・記録なし も書ける
+    const parseTime = (t: string) => { try { return timeToMs(t); } catch { return null; } };
+    const results = csvRecords.map(r => parseResultText(r.time, parseTime));
+    const bad = results.findIndex(x => x == null);
+    if (bad >= 0) {
+      alert(`${bad + 1}行目のタイム「${csvRecords[bad].time}」が読めません（hh:mm:ss か DNF・DNS・DQ・記録なし）`);
+      return;
+    }
+
+    const rows = csvRecords.map((r, i) => ({
       user_id: user.id,
-      time_ms: timeToMs(r.time),
+      status: results[i]!.status,
+      time_ms: results[i]!.time_ms,
+      dnf_km: results[i]!.dnf_km,
       distance: Number(r.distance),
       race_name: r.race_name,
       race_type: r.race_type || "road",

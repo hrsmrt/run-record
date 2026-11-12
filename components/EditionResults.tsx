@@ -1,7 +1,7 @@
 "use client"
 
 import { Fragment, useState } from "react"
-import { formatTime } from "@/lib/utils"
+import { type ResultStatus, compareResult, formatResult, isFinished } from "@/lib/result-status"
 import { SplitPoint, formatDistance } from "@/lib/splits"
 import { SplitTable } from "@/components/SplitTable"
 import { RaceGapChart } from "@/components/RaceGapChart"
@@ -12,7 +12,9 @@ export type EventResult = {
     id: number
     name: string
     gender: string | null
-    time_ms: number
+    time_ms: number | null
+    status: ResultStatus
+    dnf_km: number | null
     clever_index: number | null
     race_id: number
     overall_rank: number | null
@@ -56,14 +58,16 @@ export function EditionResults({ races, results, splits }: {
             if (va == null || vb == null) return va == null ? (vb == null ? 0 : 1) : -1
             return (sortAsc ? 1 : -1) * (va - vb)
         }
-        const diff = sortKey === "name" ? a.name.localeCompare(b.name) : a.time_ms - b.time_ms
+        // 記録順: 完走以外（DNF・DNS など）は向きに関係なく下にまとめる
+        if (sortKey !== "name" && (!isFinished(a) || !isFinished(b))) return compareResult(a, b)
+        const diff = sortKey === "name" ? a.name.localeCompare(b.name) : a.time_ms! - b.time_ms!
         return (sortAsc ? 1 : -1) * diff
     }
 
     // 種目（距離の長い順）ごとに表を分け、その中で選んだ列で並べる（並べ替えはすべての種目に共通）
     const groups = [...races]
         .sort((a, b) => b.distance_km - a.distance_km)
-        .map(race => ({ race, rows: results.filter(r => r.race_id === race.id).sort((a, b) => compareBy(a, b) || a.time_ms - b.time_ms) }))
+        .map(race => ({ race, rows: results.filter(r => r.race_id === race.id).sort((a, b) => compareBy(a, b) || compareResult(a, b)) }))
         .filter(g => g.rows.length > 0)
 
     if (groups.length === 0) return null
@@ -75,10 +79,10 @@ export function EditionResults({ races, results, splits }: {
                 // 順位を入力した人がいる種目だけ順位の列を出す
                 const hasRank = rows.some(r => r.overall_rank != null || r.gender_rank != null || r.division_rank != null)
                 const columns = hasRank ? 7 : 4
-                // ラップを登録した人が2人以上いれば、人との差をグラフで表示
+                // ラップを登録した人が2人以上いれば、人との差をグラフで表示（ゴールタイムが要るので完走した人だけ）
                 const runners = rows
-                    .filter(r => (splits.get(r.id)?.length ?? 0) > 0)
-                    .map(r => ({ id: r.id, name: r.name, timeMs: r.time_ms, points: splits.get(r.id)! }))
+                    .filter(r => isFinished(r) && r.time_ms != null && (splits.get(r.id)?.length ?? 0) > 0)
+                    .map(r => ({ id: r.id, name: r.name, timeMs: r.time_ms!, points: splits.get(r.id)! }))
                 return (
                     <section key={race.id} className="flex flex-col gap-1">
                         <h5 className="text-sm font-bold">
@@ -123,7 +127,7 @@ export function EditionResults({ races, results, splits }: {
                                                     <Fragment key={r.id}>
                                                         <tr>
                                                             <td className={`px-1 md:px-3 py-0 ${r.gender === "female" ? "text-red-600" : ""}`}>{r.name}<EnrollmentTag year={r.enrollment_year} />{r.entered_by_name && <span className="ml-1 text-[0.75em] text-gray-400" title="本人以外が登録した記録">登録: {r.entered_by_name}</span>}</td>
-                                                            <td className="px-1 md:px-3 py-0 text-right">{formatTime(r.time_ms)}</td>
+                                                            <td className="px-1 md:px-3 py-0 text-right">{formatResult(r)}</td>
                                                             <td className="px-1 md:px-3 py-0 text-right">{r.clever_index ?? ""}</td>
                                                             {hasRank && (
                                                                 <>

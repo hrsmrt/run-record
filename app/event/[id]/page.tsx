@@ -168,7 +168,7 @@ export default function EventDetailPage() {
             // この大会に紐付いた記録（公開ビュー）と、そのラップ
             const { data: resData, error: resError } = await supabase
                 .from('public_results')
-                .select('id, name, gender, time_ms, clever_index, race_id, overall_rank, overall_total, gender_rank, gender_total, division, division_rank, division_total, enrollment_year, entered_by_name')
+                .select('id, name, gender, time_ms, status, dnf_km, clever_index, race_id, overall_rank, overall_total, gender_rank, gender_total, division, division_rank, division_total, enrollment_year, entered_by_name')
                 .eq('event_id', detail.id)
             if (resError) {
                 console.error('Error fetching results:', resError)

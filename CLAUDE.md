@@ -69,6 +69,11 @@
   - `race_id` で `races` に紐付け（NULL 可。大会情報に未登録の大会は紐付けなしで `race_name`・`date` を使う）。`ON DELETE RESTRICT` のため、結果が紐付いた種目・開催回は削除できない
   - `clever_index` は RUNNET のクレバー指数の転記（`NUMERIC`、精度指定なし）
   - `race_type` は結果側の値（road / trail / track / time）。`events.type` とは別物
+  - 結果の種類 `status`（`sql/2026-11-12_result_status.sql`）: finished（完走）/ no_time（完走・記録なし）/ dnf / dq / dns。`time_ms` は完走なら必須、記録なし・DNS は空、DNF（棄権した時点）・DQ（失格前の公式タイム）は任意（CHECK 制約）。`dnf_km` は DNF でどこまで走ったか（任意）。クレバー指数は DNF でも入れてよい
+    - 表示・並べ替えは `lib/result-status.ts`（`formatResult`「DNF 30km」など、`compareResult` は 完走 → DNF（遠い順）→ DQ → 記録なし → DNS。記録順で並べても完走以外は下にまとめる）
+    - ベスト（`public_results.is_best`）は完走だけ、グラフ（`RaceGapChart`）は完走でラップのある人だけ、ラップ入力のゴールとの照合は完走だけ、大会一覧の延べ出場人数は DNS を除く
+    - 入力: 記録追加・記録の編集は「結果」の選択欄。一括登録・CSV はタイムの欄に DNF（DNF 30 で30kmまで）・DNS・DQ（DSQ）・記録なし（NT）と書く（`parseResultText`）
+    - 以前 99:59:59 などで入れていた記録は、管理人が記録の編集で直す（確認用の SELECT は SQL の末尾）
 - **ラップ**: `result_splits`（`result_id`, `distance_km`, `elapsed_ms`、`(result_id, distance_km)` で一意）
   - 通過タイムは号砲からのグロス。0km の行がスタートロス。ネット = 通過 − ロス
   - 計算・書式は `lib/splits.ts`、表示は `components/SplitTable.tsx`
@@ -180,6 +185,7 @@
 - 画面の「幹事」を「記録係」に（外向けのフッター・このサイトについては「同大会参加者」）
 - 大会一覧・開催日順・カレンダーを共通の絞り込みとタブで作り直し（DB の変更なし）
 - `2026-11-12_edition_names.sql` - 改名した大会の当時の大会名、`public_results` の大会名、まとめるときに旧名を残す
+- `2026-11-12_result_status.sql` - 記録の結果の種類（完走・記録なし・DNF・DQ・DNS）、DNF の距離、`public_results` に status・dnf_km、ベストは完走だけ
 - 今後の候補: 記録の編集（`/records/edit`）でも大会・開催日・種目を追加できるようにする（今の `RaceInput` は登録済みから選ぶだけ）
 
 ### 2026-11-11: 掲示板のルート案、日程調整からの引き継ぎ

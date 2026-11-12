@@ -7,11 +7,15 @@ import { RacePicker } from "@/components/RacePicker";
 import { MemberSelect } from "@/components/MemberSelect";
 import { DivisionDatalist } from "@/components/RaceDivisionsEditor";
 import { parseCount } from "@/lib/ranks";
+import { RESULT_STATUSES, RESULT_STATUS_LABELS, type ResultStatus, timeAllowed, timeRequired } from "@/lib/result-status";
 import { getAdminState } from "@/lib/admin";
 import Link from "next/link";
 
 export default function AddRecordForm() {
   const [time, setTime] = useState("");
+  // 結果の種類（完走・記録なし・DNF・DQ・DNS）と、DNF のときどこまで走ったか
+  const [status, setStatus] = useState<ResultStatus>("finished");
+  const [dnfKm, setDnfKm] = useState("");
   const [distance, setDistance] = useState("");
   const [raceName, setRaceName] = useState("");
   const [raceType, setRaceType] = useState("");
@@ -69,9 +73,15 @@ export default function AddRecordForm() {
       return;
     }
 
+    // タイムは完走なら必須、DNF・DQ は任意、記録なし・DNS は入れない
     const regex = /^(\d{1,2}):([0-5]\d):([0-5]\d)(\.\d{1,4})?$/;
-    if (!regex.test(time)) {
+    const hasTime = timeAllowed(status) && time.trim() !== "";
+    if ((timeRequired(status) || hasTime) && !regex.test(time.trim())) {
       alert("hh:mm:ss または hh:mm:ss.aa の形式で入力してください");
+      return;
+    }
+    if (status === "dnf" && dnfKm !== "" && !(Number(dnfKm) > 0)) {
+      setMessage("DNF の距離は km の数値で入力してください");
       return;
     }
 
@@ -88,7 +98,9 @@ export default function AddRecordForm() {
 
     const { error } = await supabase.from("results").insert({
       user_id: isAdmin && targetUserId ? targetUserId : user.id,
-      time_ms: timeToMs(time),
+      time_ms: hasTime ? timeToMs(time.trim()) : null,
+      status,
+      dnf_km: status === "dnf" && dnfKm !== "" ? Number(dnfKm) : null,
       distance: Number(distance),
       race_name: raceName,
       race_type: raceType || "road",
@@ -108,6 +120,8 @@ export default function AddRecordForm() {
     } else {
       setMessage("記録を追加しました！");
       setTime("");
+      setStatus("finished");
+      setDnfKm("");
       setDistance("");
       setRaceName("");
       setRaceType("");
@@ -165,15 +179,42 @@ export default function AddRecordForm() {
             />
           </div>
           <div className="flex items-center">
-            <span className="mr-2 w-32 text-right whitespace-nowrap">タイム(01:23:45)</span>
-            <input
-              type="text"
-              value={time}
-              onChange={(e) => setTime(e.target.value)}
-              placeholder="01:23:45"
-              className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2 bg-white"
-            />
+            <span className="mr-2 w-32 text-right whitespace-nowrap">結果</span>
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value as ResultStatus)}
+              className="flex-1 rounded-md border-gray-300 shadow-sm px-3 py-2 bg-white"
+            >
+              {RESULT_STATUSES.map(s => <option key={s} value={s}>{RESULT_STATUS_LABELS[s]}</option>)}
+            </select>
           </div>
+          {timeAllowed(status) && (
+            <div className="flex items-center">
+              <span className="mr-2 w-32 text-right whitespace-nowrap">
+                {status === "finished" ? "タイム(01:23:45)" : status === "dnf" ? "棄権時のタイム" : "公式タイム"}
+              </span>
+              <input
+                type="text"
+                value={time}
+                onChange={(e) => setTime(e.target.value)}
+                placeholder={status === "finished" ? "01:23:45" : "任意"}
+                className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2 bg-white"
+              />
+            </div>
+          )}
+          {status === "dnf" && (
+            <div className="flex items-center">
+              <span className="mr-2 w-32 text-right whitespace-nowrap">どこまで(km)</span>
+              <input
+                type="number"
+                step="0.1"
+                value={dnfKm}
+                onChange={(e) => setDnfKm(e.target.value)}
+                placeholder="任意（例: 30）"
+                className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2 bg-white"
+              />
+            </div>
+          )}
           <div className="flex items-center">
             <span className="mr-2 w-32 text-right whitespace-nowrap">距離(km)</span>
             <input

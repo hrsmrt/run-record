@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { formatTime } from "@/lib/utils"
+import { RESULT_STATUS_LABELS, type ResultStatus, formatResult } from "@/lib/result-status"
 import { formatDateTime } from "@/components/MessageThread"
 
 type HistoryRow = {
@@ -23,7 +24,9 @@ const LIMIT = 200
 
 // 変更を見る列と表示名（ID や作成日時などは出さない）
 const FIELDS: { key: string; label: string; format?: (v: unknown) => string }[] = [
+    { key: "status", label: "結果", format: v => v == null ? "" : RESULT_STATUS_LABELS[v as ResultStatus] ?? String(v) },
     { key: "time_ms", label: "タイム", format: v => v == null ? "" : formatTime(Number(v)) },
+    { key: "dnf_km", label: "DNF の距離", format: v => v == null ? "" : `${Number(v)}km` },
     { key: "distance", label: "距離" },
     { key: "race_name", label: "大会名" },
     { key: "date", label: "日付" },
@@ -88,7 +91,7 @@ export function ResultsHistoryClient() {
                                             ? (changes.length === 0 ? <span className="text-gray-500">（表示する項目の変更なし）</span> : changes.map(f => (
                                                 <div key={f.key}>{f.label}: {show(f, r.old_row?.[f.key])} → {show(f, r.new_row?.[f.key])}</div>
                                             )))
-                                            : <span>{formatTime(Number(row?.time_ms ?? 0))}{row?.comment ? `・${String(row.comment)}` : ""}</span>}
+                                            : <span>{formatResult({ status: (row?.status as ResultStatus | undefined) ?? "finished", time_ms: row?.time_ms == null ? null : Number(row.time_ms), dnf_km: row?.dnf_km as number | null })}{row?.comment ? `・${String(row.comment)}` : ""}</span>}
                                     </td>
                                 </tr>
                             )

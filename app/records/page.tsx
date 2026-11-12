@@ -2,13 +2,15 @@
 
 import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
-import { formatTime } from "@/lib/utils"
+import { type ResultStatus, compareResult, formatResult, isFinished } from "@/lib/result-status"
 import Link from "next/link"
 
 type Record = {
   id: number
   name: string
-  time_ms: number
+  time_ms: number | null
+  status: ResultStatus
+  dnf_km: number | null
   race_name: string
   race_type: string
   distance: number
@@ -63,6 +65,8 @@ export default function Page() {
   }
 
   const sortedRecords = [...records].sort((a, b) => {
+    // 記録順: 完走以外（DNF・DNS など）は向きに関係なく下にまとめる
+    if (sortKey === "time_ms" && (!isFinished(a) || !isFinished(b))) return compareResult(a, b)
     const valA = a[sortKey]
     const valB = b[sortKey]
 
@@ -138,7 +142,7 @@ export default function Page() {
                 <tr key={r.id}>
                   <td className="px-1 md:px-3 py-0 text-right">{index + 1}.</td>
                   <td className="px-1 md:px-3 py-0 text-right">
-                    {formatTime(r.time_ms)}
+                    {formatResult(r)}
                   </td>
                   <td className="px-1 md:px-3 py-0">{r.comment}</td>
                   <td className="px-1 md:px-3 py-0 text-right">{r.race_name} </td>

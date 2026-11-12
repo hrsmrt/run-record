@@ -3,7 +3,7 @@
 import { Fragment, useState } from "react"
 import Link from "next/link"
 import type { SupabaseClient } from "@supabase/supabase-js"
-import { formatTime } from "@/lib/utils"
+import { type ResultStatus, compareResult, formatResult } from "@/lib/result-status"
 import { formatDistance } from "@/lib/splits"
 import { SplitTableLoader } from "@/components/SplitTable"
 import { parseComment } from "@/components/CommentText"
@@ -13,7 +13,9 @@ export type GroupRecord = {
     id: number
     name: string
     gender: string | null
-    time_ms: number
+    time_ms: number | null
+    status: ResultStatus
+    dnf_km: number | null
     distance: number
     race_name: string
     date: string
@@ -53,7 +55,7 @@ export async function fetchRaceGroups(supabase: SupabaseClient): Promise<RaceGro
     for (let from = 0; ; from += PAGE_SIZE) {
         const { data, error } = await supabase
             .from("public_results")
-            .select("id, name, gender, time_ms, distance, race_name, date, comment, clever_index, event_id, has_splits, category, enrollment_year")
+            .select("id, name, gender, time_ms, status, dnf_km, distance, race_name, date, comment, clever_index, event_id, has_splits, category, enrollment_year")
             .not("date", "is", null)
             .order("date", { ascending: false })
             .order("id")
@@ -84,7 +86,7 @@ export async function fetchRaceGroups(supabase: SupabaseClient): Promise<RaceGro
         byKey.set(key, g)
     }
     const groups = [...byKey.values()]
-    groups.forEach(g => g.records.sort((a, b) => b.distance - a.distance || a.time_ms - b.time_ms))
+    groups.forEach(g => g.records.sort((a, b) => b.distance - a.distance || compareResult(a, b)))
     return groups
 }
 
@@ -129,7 +131,7 @@ export function RaceGroupRecords({ records }: { records: GroupRecord[] }) {
                             <tr>
                                 <td className={`px-1 md:px-3 py-0 ${r.gender === "female" ? "text-red-600" : ""}`}>{r.name}<EnrollmentTag year={r.enrollment_year} /></td>
                                 <td className="px-1 md:px-3 py-0 text-right">{formatDistance(r.distance)}</td>
-                                <td className="px-1 md:px-3 py-0 text-right">{formatTime(r.time_ms)}</td>
+                                <td className="px-1 md:px-3 py-0 text-right">{formatResult(r)}</td>
                                 <td className="px-1 md:px-3 py-0 text-right">{r.clever_index ?? ""}</td>
                                 <td className="px-1 md:px-3 py-0 text-center">
                                     {r.has_splits && (
