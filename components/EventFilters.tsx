@@ -44,9 +44,10 @@ export function useEventFilters() {
     return { filter, params, setParams, query, setQuery, clear, active }
 }
 
+// 大会情報の入口（ヘッダーのメニュー）は開催日順
 const TABS = [
-    { href: "/event", label: "大会" },
     { href: "/event/editions", label: "開催日順" },
+    { href: "/event", label: "大会" },
     { href: "/event/schedule", label: "カレンダー" },
 ]
 

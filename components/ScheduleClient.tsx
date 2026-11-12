@@ -57,7 +57,7 @@ function buildWeeks(editions: CatalogEditionRow[], fy: number): Week[] {
     return weeks
 }
 
-// カレンダー: 年度ごとの週の一覧。開いたら今週へ移動し、過ぎた週は薄くする。祝日・連休の印を付ける
+// カレンダー: 年度ごとの週の一覧。今週に色を付け（「今週へ」で移動）、過ぎた週は薄くする。祝日・連休の印を付ける
 export function ScheduleClient() {
     const f = useEventFilters()
     const [catalog, setCatalog] = useState<EventCatalog | null>(null)
@@ -65,7 +65,6 @@ export function ScheduleClient() {
     const today = todayStr()
     const fy = Number(f.params.get("fy") ?? toFiscalYear(today))
     const thisWeekRef = useRef<HTMLLIElement>(null)
-    const scrolledRef = useRef(false)
 
     useEffect(() => { loadEventCatalog(createClient()).then(setCatalog).catch((e: Error) => setError(e.message)) }, [])
 
@@ -80,13 +79,6 @@ export function ScheduleClient() {
         const eds = catalog.editions.filter(e => e.held_on && toFiscalYear(e.held_on) === fy && matchEdition(catalog, e, f.filter))
         return buildWeeks(eds, fy)
     }, [catalog, fy, f.filter])
-
-    // 最初に表示したときだけ今週へ移動する
-    useEffect(() => {
-        if (scrolledRef.current || weeks.length === 0 || !thisWeekRef.current) return
-        scrolledRef.current = true
-        thisWeekRef.current.scrollIntoView({ block: "center" })
-    }, [weeks])
 
     const count = weeks.reduce((n, w) => n + w.editions.length, 0)
 

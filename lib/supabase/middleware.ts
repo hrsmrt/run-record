@@ -74,7 +74,7 @@ export async function updateSession(request: NextRequest) {
   const viewerBlocked =
     pathname.startsWith("/records") ||
     pathname.startsWith("/profile") ||
-    pathname.startsWith("/event/edit") ||
+    pathname.startsWith("/event/edit-") ||
     pathname.startsWith("/reports/edit") ||
     pathname === "/practices/new" ||
     pathname === "/board/new" ||
@@ -88,7 +88,7 @@ export async function updateSession(request: NextRequest) {
   }
 
   // 管理者ページは2段階認証済み（aal2）のセッションのみ。未認証なら登録・入力画面へ
-  if (pathname.startsWith("/event/edit") && user?.app_metadata?.role === "admin" && user?.aal !== "aal2") {
+  if (pathname.startsWith("/event/edit-") && user?.app_metadata?.role === "admin" && user?.aal !== "aal2") {
     const url = request.nextUrl.clone();
     url.pathname = "/auth/mfa";
     url.search = `?next=${encodeURIComponent(pathname)}`;

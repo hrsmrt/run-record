@@ -51,106 +51,72 @@ export default function SearchPage() {
   return (
     <main className="min-h-screen flex flex-col items-center p-4">
       <div className="flex-1 w-full flex flex-col gap-4">
-        検索ページ
-        {/* フィルター部分 */}
-        <div className="flex flex-col md:flex-row flex-wrap gap-4 mb-4 w-full text-base lg:text-lg">
-
-          <div className="flex-1 min-w-[80px] max-w-[200px]">
-            <select
-            value={event}
-            onChange={e => setEvent(e.target.value as EventType)}
-            className="w-full border px-2 py-1 rounded"
-          >
-            <option value="all">全種目</option>
-            <option value="full">フルマラソン</option>
-            <option value="half">ハーフマラソン</option>
-            <option value="10km">10キロ</option>
-            <option value="5km">5キロ</option>
-            <option value="100km">100キロ</option>
-            <option value="その他(100km未満)">その他(100km未満)</option>
-            <option value="その他(100km以上)">その他(100km以上)</option>
-            <option value="trail">トレイル</option>
-          </select>
-          </div>
-          {raceType !== "trail" && !distance.startsWith("その他") && (
-          <>
-          <div className="flex-1 min-w-[80px] max-w-[200px]">
-            <select
-              value={view}
-              onChange={e => setView(e.target.value as ViewType)}
-              className="w-full border px-2 py-1 rounded"
-            >
-              <option value="all">全記録</option>
-              <option value="best">ベスト記録のみ</option>
+        <h1 className="text-lg font-bold">記録検索</h1>
+        {/* フィルター部分（スマホでも1〜3行に収まる大きさ。大会情報の絞り込み欄にそろえる） */}
+        <div className="flex flex-col gap-2 bg-white text-black border rounded p-2 text-sm w-full max-w-4xl">
+          <div className="flex flex-wrap items-center gap-2">
+            <select value={event} onChange={e => setEvent(e.target.value as EventType)} className="border rounded px-1 py-1 bg-white" aria-label="種目">
+              <option value="all">全種目</option>
+              <option value="full">フルマラソン</option>
+              <option value="half">ハーフマラソン</option>
+              <option value="10km">10キロ</option>
+              <option value="5km">5キロ</option>
+              <option value="100km">100キロ</option>
+              <option value="その他(100km未満)">その他(100km未満)</option>
+              <option value="その他(100km以上)">その他(100km以上)</option>
+              <option value="trail">トレイル</option>
             </select>
-          </div>
-          </>
-          )}
+            {raceType !== "trail" && !distance.startsWith("その他") && (
+              <select value={view} onChange={e => setView(e.target.value as ViewType)} className="border rounded px-1 py-1 bg-white" aria-label="記録の種類">
+                <option value="all">全記録</option>
+                <option value="best">ベスト記録のみ</option>
+              </select>
+            )}
             {raceType !== "trail" && (
-          <>
-          <div className="flex-1 min-w-[40px] max-w-[200px]">
-            <select
-              value={gender}
-              onChange={e => setGenderFilter(e.target.value as GenderType)}
-              className="w-full border px-2 py-1 rounded"
-            >
-              <option value="all">総合</option>
-              <option value="male">男子</option>
-              <option value="female">女子</option>
-            </select>
+              <select value={gender} onChange={e => setGenderFilter(e.target.value as GenderType)} className="border rounded px-1 py-1 bg-white" aria-label="男女">
+                <option value="all">総合</option>
+                <option value="male">男子</option>
+                <option value="female">女子</option>
+              </select>
+            )}
           </div>
-          </>
-          )}
-          <div className="flex-1 min-w-[40px] max-w-[200px]">
+          <div className="flex flex-wrap items-center gap-2">
             <input
               type="text"
               value={racenameSearch}
               onChange={e => setRacenameSearch(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  setSearchTrigger(prev => prev + 1);  // 検索トリガーを変更
-                }
-              }}
-              className="w-full border px-2 py-1 rounded"
+              onKeyDown={e => { if (e.key === "Enter") setSearchTrigger(prev => prev + 1) }}
+              className="border rounded px-2 py-1 flex-1 min-w-[8rem]"
               placeholder="大会名"
+              aria-label="大会名"
             />
-          </div>
-          <div className="flex-1 min-w-[40px] max-w-[200px]">
             <input
               type="text"
               value={nameSearch}
               onChange={e => setNameSearch(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  setSearchTrigger(prev => prev + 1);  // 検索トリガーを変更
-                }
-              }}
-              className="w-full border px-2 py-1 rounded"
+              onKeyDown={e => { if (e.key === "Enter") setSearchTrigger(prev => prev + 1) }}
+              className="border rounded px-2 py-1 flex-1 min-w-[6rem]"
               placeholder="名前"
+              aria-label="名前"
             />
-          </div>
-          <div className="flex-1 min-w-[40px] max-w-[200px]">
             <input
               type="text"
+              inputMode="numeric"
               value={year}
               onChange={e => setYear(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  setSearchTrigger(prev => prev + 1);  // 検索トリガーを変更
-                }
-              }}
-              className="w-full border px-2 py-1 rounded"
+              onKeyDown={e => { if (e.key === "Enter") setSearchTrigger(prev => prev + 1) }}
+              className="border rounded px-2 py-1 w-16"
               placeholder="年"
+              aria-label="年"
             />
-          </div>
-          <div className="flex-1 min-w-[40px] max-w-[200px]">
             <input
               type="text"
               inputMode="numeric"
               value={enrollmentYear}
               onChange={e => setEnrollmentYear(e.target.value.trim())}
-              className="w-full border px-2 py-1 rounded"
-              placeholder="入学年度（例: 2017）"
+              className="border rounded px-2 py-1 w-28"
+              placeholder="入学年度 例 2017"
+              aria-label="入学年度"
             />
           </div>
         </div>

@@ -254,8 +254,8 @@ export default function EventDetailPage() {
         <main className="min-h-screen flex flex-col items-center p-4">
             <div className="w-full max-w-6xl">
                 <nav className="flex gap-4 mb-3 text-sm">
-                    <Link href="/event" className="text-blue-600 hover:underline">大会一覧</Link>
-                    <Link href="/event/editions" className="text-blue-600 hover:underline">開催一覧</Link>
+                    <Link href="/event/editions" className="text-blue-600 hover:underline">開催日順</Link>
+                    <Link href="/event" className="text-blue-600 hover:underline">大会</Link>
                     <Link href="/event/schedule" className="text-blue-600 hover:underline">カレンダー</Link>
                 </nav>
 

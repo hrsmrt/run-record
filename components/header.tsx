@@ -129,7 +129,7 @@ export function Header() {
                 </li>
                 <li>
                   <Link
-                    href="/event/schedule"
+                    href="/event/editions"
                     className="block px-4 py-2 hover:bg-gray-200"
                     onClick={() => setOpen(false)}
                   >
@@ -142,7 +142,7 @@ export function Header() {
                     className="block px-4 py-2 hover:bg-gray-200"
                     onClick={() => setOpen(false)}
                   >
-                    検索
+                    記録検索
                   </Link>
                 </li>
                 <li>
