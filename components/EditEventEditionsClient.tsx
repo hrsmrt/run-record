@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { useUnsavedWarning } from "@/lib/use-unsaved-warning"
+import { AdminEventFilterNote } from "@/components/AdminEventFilterNote"
 
 type Event = {
     id: number
@@ -20,10 +21,11 @@ type EventEdition = {
 
 type NewEdition = Omit<EventEdition, "id">
 
-export function EditEventEditionsClient() {
+// onlyEventId: その大会の開催回だけ出し、追加の大会もその大会にしておく（大会詳細の管理者メニューから）
+export function EditEventEditionsClient({ onlyEventId }: { onlyEventId?: number }) {
     const [editions, setEditions] = useState<EventEdition[]>([])
     const [events, setEvents] = useState<Event[]>([])
-    const [newRow, setNewRow] = useState<NewEdition>({ event_id: 0, edition_number: null, held_on: null, name: null })
+    const [newRow, setNewRow] = useState<NewEdition>({ event_id: onlyEventId ?? 0, edition_number: null, held_on: null, name: null })
     const [message, setMessage] = useState("")
     // 新規追加の結果はフォームの近くに出す
     const [addMessage, setAddMessage] = useState<{ text: string; isError: boolean } | null>(null)
@@ -56,8 +58,10 @@ export function EditEventEditionsClient() {
             if (error) { setMessage(`読み込みに失敗しました: ${error.message}`); return }
             setEditions(edData ?? [])
             setEvents(evData ?? [])
+            if (onlyEventId != null) setEventSearch((evData ?? []).find(ev => ev.id === onlyEventId)?.name ?? "")
         }
         fetch()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [supabase])
 
     const handleSaveAll = async () => {
@@ -120,8 +124,8 @@ export function EditEventEditionsClient() {
             if (!b.held_on) return -1
             return a.held_on.localeCompare(b.held_on)
         }))
-        setNewRow({ event_id: 0, edition_number: null, held_on: null, name: null })
-        setEventSearch("")
+        setNewRow({ event_id: onlyEventId ?? 0, edition_number: null, held_on: null, name: null })
+        setEventSearch(onlyEventId != null ? events.find(ev => ev.id === onlyEventId)?.name ?? "" : "")
         setAddMessage({ text: "追加しました", isError: false })
     }
 
@@ -136,11 +140,13 @@ export function EditEventEditionsClient() {
                 変更を保存{dirtyIds.size > 0 && `（${dirtyIds.size}件）`}
             </button>
             {message && <p className="mb-2 text-sm">{message}</p>}
+            {onlyEventId != null && <AdminEventFilterNote eventId={onlyEventId} eventName={events.find(e => e.id === onlyEventId)?.name} basePath="/event/edit-editions" />}
 
             <div className="overflow-x-auto">
                 <table className="w-full table-auto text-left border-collapse text-sm">
                     <thead>
                         <tr className="border-b">
+                            <th className="px-2 py-1">ID</th>
                             <th className="px-2 py-1">大会名</th>
                             <th className="px-2 py-1">回数</th>
                             <th className="px-2 py-1">開催日</th>
@@ -149,8 +155,10 @@ export function EditEventEditionsClient() {
                         </tr>
                     </thead>
                     <tbody>
-                        {editions.map(ed => (
+                        {/* 絞り込み中に別の大会へ付け替えた行も、保存するまでは出しておく */}
+                        {editions.filter(ed => onlyEventId == null || ed.event_id === onlyEventId || dirtyIds.has(ed.id)).map(ed => (
                             <tr key={ed.id} className={`border-b ${dirtyIds.has(ed.id) ? "bg-yellow-50" : ""}`}>
+                                <td className="px-2 py-1 text-xs text-gray-500">{ed.id}</td>
                                 <td className="px-2 py-1">
                                     <select
                                         value={ed.event_id}

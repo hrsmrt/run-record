@@ -3,7 +3,10 @@ import { EventAdminNav } from "@/components/EventAdminNav"
 import { createClient } from "@/lib/supabase/server"
 import { EditEventEditionsClient } from "@/components/EditEventEditionsClient"
 
-export default async function EditEventEditionsPage() {
+// ?event=大会ID でその大会の分だけ表示する（大会詳細の管理者メニューから）
+export default async function EditEventEditionsPage({ searchParams }: { searchParams: Promise<{ event?: string }> }) {
+    const eventParam = Number((await searchParams).event)
+    const eventId = Number.isInteger(eventParam) && eventParam > 0 ? eventParam : undefined
     const supabase = await createClient()
     const { data, error } = await supabase.auth.getClaims()
 
@@ -11,14 +14,14 @@ export default async function EditEventEditionsPage() {
         redirect("/")
     }
     if (data.claims.aal !== "aal2") {
-        redirect("/auth/mfa?next=/event/edit-editions")
+        redirect(`/auth/mfa?next=/event/edit-editions${eventId ? `?event=${eventId}` : ""}`)
     }
 
     return (
         <div>
             <EventAdminNav current="/event/edit-editions" />
             <h1 className="text-2xl font-bold mb-4 px-4 pt-2">大会開催日編集</h1>
-            <EditEventEditionsClient />
+            <EditEventEditionsClient onlyEventId={eventId} />
         </div>
     )
 }

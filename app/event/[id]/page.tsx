@@ -20,6 +20,7 @@ import { RaceDayInfoEditor, formatCertified, formatStartTime } from "@/component
 import type { EventNote } from "@/lib/event-info"
 import type { RacePlan } from "@/lib/race-plans"
 import { todayStr } from "@/lib/practices"
+import { EventAdminPanel } from "@/components/EventAdminPanel"
 
 type Race = {
     id: number
@@ -286,6 +287,10 @@ export default function EventDetailPage() {
                                 旧称: {formerNames(event).map(f => `${f.name}（${f.range}）`).join("、")}
                             </p>
                         )}
+                        {/* 管理者だけ（2段階認証済み）。ID・付いているものの件数・似た名前の大会・管理画面への入口 */}
+                        <div className="mb-3 max-w-4xl">
+                            <EventAdminPanel eventId={event.id} eventName={event.name} editions={event.event_editions} />
+                        </div>
                         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm mb-6">
                             <dt className="text-gray-500">県</dt>
                             <dd>{event.prefecture ?? "未設定"}</dd>

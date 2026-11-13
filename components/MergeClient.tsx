@@ -1,27 +1,36 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { type CatalogEdition, type CatalogEvent, type CatalogRace, normalizeEventName, useCatalog } from "@/components/RacePicker"
 import { formatDistance } from "@/lib/splits"
+import { type UsageMap, fetchCatalogUsage, usageKey, usageText, usageWeight } from "@/lib/catalog-usage"
 
-type Kind = "event" | "edition" | "race"
+export type Kind = "event" | "edition" | "race"
 const KIND_LABELS: Record<Kind, string> = { event: "大会", edition: "開催回", race: "種目" }
-type Preview = { editions: number; races: number; results: number; reports: number; routes: number; organizers: number }
+// 最初に選んでおく値（大会詳細の管理者メニューから ?kind=&event=&edition=&from=&into= で開いたとき）
+export type MergeInitial = { kind?: Kind; eventId?: number; editionId?: number; fromId?: number; intoId?: number }
 
 const formatDate = (d: string | null) => d ? `${d.substring(0, 4)}/${d.substring(5, 7)}/${d.substring(8, 10)}` : "開催日未定"
 
 // 管理者: 重複した大会・開催回・種目を1つにまとめる。消す方に付いている記録などを残す方へ付け替えてから消す
-export function MergeClient() {
+export function MergeClient({ initial = {} }: { initial?: MergeInitial }) {
     const { events, editions, races, error, reload } = useCatalog()
     // 大会をまとめるとき、消す方の名前を開催回の当時の名前として残す（改名した大会向け）
     const [keepOldName, setKeepOldName] = useState(true)
-    const [kind, setKind] = useState<Kind>("event")
-    const [eventId, setEventId] = useState<number | null>(null)
-    const [editionId, setEditionId] = useState<number | null>(null)
-    const [fromId, setFromId] = useState<number | null>(null)
-    const [intoId, setIntoId] = useState<number | null>(null)
-    const [preview, setPreview] = useState<Preview | null>(null)
+    const [kind, setKind] = useState<Kind>(initial.kind ?? "event")
+    const [eventId, setEventId] = useState<number | null>(initial.eventId ?? null)
+    const [editionId, setEditionId] = useState<number | null>(initial.editionId ?? null)
+    const [fromId, setFromId] = useState<number | null>(initial.fromId ?? null)
+    const [intoId, setIntoId] = useState<number | null>(initial.intoId ?? null)
+    // 大会・開催回・種目ごとに付いているものの件数（どちらに記録が付いているかを見比べる）
+    const [usage, setUsage] = useState<UsageMap | null>(null)
+    const reloadUsage = useCallback(() => {
+        fetchCatalogUsage(createClient()).then(setUsage).catch((e: Error) => setMessage({ text: `件数を取得できませんでした: ${e.message}`, isError: true }))
+    }, [])
+    useEffect(() => { reloadUsage() }, [reloadUsage])
+    const counts = (k: Kind, id: number) => usage ? usageText(usage.get(usageKey(k, id)), k) : "…"
     const [busy, setBusy] = useState(false)
     const [message, setMessage] = useState<{ text: string; isError: boolean } | null>(null)
 
@@ -31,21 +40,21 @@ export function MergeClient() {
 
     // 重複の候補（大会は名前の表記ゆれ、開催回は同じ大会の同じ日、種目は同じ開催回の同じ距離）
     const candidates = useMemo(() => {
-        const list: { kind: Kind; label: string; ids: number[]; eventId?: number; editionId?: number }[] = []
+        const list: { kind: Kind; label?: string; items: { id: number; label: string }[]; eventId?: number; editionId?: number }[] = []
         const byName = new Map<string, CatalogEvent[]>()
         for (const e of events ?? []) {
             const k = normalizeEventName(e.name)
             byName.set(k, [...(byName.get(k) ?? []), e])
         }
-        byName.forEach(g => { if (g.length > 1) list.push({ kind: "event", label: g.map(e => e.name).join(" / "), ids: g.map(e => e.id) }) })
+        byName.forEach(g => { if (g.length > 1) list.push({ kind: "event", items: g.map(e => ({ id: e.id, label: e.name })) }) })
         const byDate = new Map<string, CatalogEdition[]>()
         for (const ed of editions) if (ed.held_on) byDate.set(`${ed.event_id}|${ed.held_on}`, [...(byDate.get(`${ed.event_id}|${ed.held_on}`) ?? []), ed])
-        byDate.forEach(g => { if (g.length > 1) list.push({ kind: "edition", label: editionLabel(g[0]), ids: g.map(e => e.id), eventId: g[0].event_id }) })
+        byDate.forEach(g => { if (g.length > 1) list.push({ kind: "edition", label: editionLabel(g[0]), items: g.map(e => ({ id: e.id, label: e.edition_number != null ? `第${e.edition_number}回` : "" })), eventId: g[0].event_id }) })
         const byDistance = new Map<string, CatalogRace[]>()
         for (const r of races) byDistance.set(`${r.event_edition_id}|${r.distance_km}`, [...(byDistance.get(`${r.event_edition_id}|${r.distance_km}`) ?? []), r])
         byDistance.forEach(g => {
             const ed = editions.find(e => e.id === g[0].event_edition_id)
-            if (g.length > 1 && ed) list.push({ kind: "race", label: `${editionLabel(ed)} ${g.map(raceLabel).join(" / ")}`, ids: g.map(r => r.id), eventId: ed.event_id, editionId: ed.id })
+            if (g.length > 1 && ed) list.push({ kind: "race", label: editionLabel(ed), items: g.map(r => ({ id: r.id, label: raceLabel(r) })), eventId: ed.event_id, editionId: ed.id })
         })
         return list
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -57,7 +66,6 @@ export function MergeClient() {
         if (next.editionId !== undefined) setEditionId(next.editionId)
         setFromId(null)
         setIntoId(null)
-        setPreview(null)
         setMessage(null)
     }
 
@@ -66,16 +74,16 @@ export function MergeClient() {
         : kind === "edition" ? editions.filter(e => e.event_id === eventId).sort((a, b) => (b.held_on ?? "").localeCompare(a.held_on ?? "")).map(e => ({ id: e.id, label: `${editionLabel(e)}（ID ${e.id}）` }))
         : races.filter(r => r.event_edition_id === editionId).map(r => ({ id: r.id, label: `${raceLabel(r)}（ID ${r.id}）` }))
 
-    // k は候補から選んだときの種類（setKind の反映を待たずに件数を取るため）
-    const choose = async (from: number | null, into: number | null, k: Kind = kind) => {
+    const choose = (from: number | null, into: number | null) => {
         setFromId(from)
         setIntoId(into)
-        setPreview(null)
         setMessage(null)
-        if (from == null) return
-        const { data, error } = await createClient().rpc("admin_merge_preview", { p_kind: k, p_from: from }).single()
-        if (error) { setMessage({ text: `件数を取得できませんでした: ${error.message}`, isError: true }); return }
-        setPreview(data as Preview)
+    }
+
+    // 候補から選ぶとき、記録などが多い方を残す方にする
+    const chooseCandidate = (k: Kind, ids: number[]) => {
+        const sorted = [...ids].sort((a, b) => usageWeight(usage?.get(usageKey(k, b))) - usageWeight(usage?.get(usageKey(k, a))) || a - b)
+        choose(sorted[1], sorted[0])
     }
 
     const merge = async () => {
@@ -93,8 +101,8 @@ export function MergeClient() {
         setMessage({ text: `まとめました（「${fromLabel}」は削除しました）`, isError: false })
         setFromId(null)
         setIntoId(null)
-        setPreview(null)
         reload()
+        reloadUsage()
     }
 
     if (error) return <p className="px-4 text-sm text-red-600">読み込みに失敗しました: {error}</p>
@@ -111,9 +119,17 @@ export function MergeClient() {
                     {candidates.map((c, i) => (
                         <li key={i} className="flex flex-wrap items-center gap-2">
                             <span className="text-xs px-1 rounded bg-gray-100">{KIND_LABELS[c.kind]}</span>
-                            <span>{c.label}</span>
+                            {c.label && <span>{c.label}</span>}
+                            <span>
+                                {c.items.map((it, j) => (
+                                    <span key={it.id}>
+                                        {j > 0 && " / "}
+                                        {it.label}<span className="text-xs text-gray-600">（ID {it.id}・{counts(c.kind, it.id)}）</span>
+                                    </span>
+                                ))}
+                            </span>
                             <button
-                                onClick={() => { reset({ kind: c.kind, eventId: c.eventId ?? null, editionId: c.editionId ?? null }); choose(c.ids[1], c.ids[0], c.kind) }}
+                                onClick={() => { reset({ kind: c.kind, eventId: c.eventId ?? null, editionId: c.editionId ?? null }); chooseCandidate(c.kind, c.items.map(it => it.id)) }}
                                 className="text-xs text-blue-600 hover:underline"
                             >
                                 まとめる
@@ -150,14 +166,15 @@ export function MergeClient() {
                     <div className="flex flex-wrap items-center gap-2">
                         <select value={fromId ?? ""} onChange={e => choose(e.target.value ? Number(e.target.value) : null, intoId)} className={select} aria-label="消す方">
                             <option value="">消す方</option>
-                            {choices.map(c => <option key={c.id} value={c.id} disabled={c.id === intoId}>{c.label}</option>)}
+                            {choices.map(c => <option key={c.id} value={c.id} disabled={c.id === intoId}>{c.label}・{counts(kind, c.id)}</option>)}
                         </select>
                         <span>を</span>
                         <select value={intoId ?? ""} onChange={e => setIntoId(e.target.value ? Number(e.target.value) : null)} className={select} aria-label="残す方">
                             <option value="">残す方</option>
-                            {choices.map(c => <option key={c.id} value={c.id} disabled={c.id === fromId}>{c.label}</option>)}
+                            {choices.map(c => <option key={c.id} value={c.id} disabled={c.id === fromId}>{c.label}・{counts(kind, c.id)}</option>)}
                         </select>
                         <span>にまとめる</span>
+                        <button onClick={() => choose(intoId, fromId)} disabled={fromId == null && intoId == null} className="text-xs text-blue-600 hover:underline disabled:opacity-50">入れ替える</button>
                     </div>
                 )}
                 {kind === "event" && (
@@ -169,11 +186,17 @@ export function MergeClient() {
                         </span>
                     </label>
                 )}
-                {preview && (
-                    <p className="text-gray-700">
-                        消す方に付いているもの: 開催回 {preview.editions}・種目 {preview.races}・記録 {preview.results}・大会レポート {preview.reports}・コース {preview.routes}・記録係 {preview.organizers}
-                        （残す方へ付け替えます。同じ日の開催回・同じ距離と名前の種目は、さらにまとめます）
-                    </p>
+                {(fromId != null || intoId != null) && (
+                    <div className="text-gray-700 flex flex-col gap-0.5">
+                        {([["消す方", fromId], ["残す方", intoId]] as const).map(([title, id]) => id != null && (
+                            <p key={title}>
+                                <span className={`text-xs px-1 rounded mr-1 ${title === "消す方" ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800"}`}>{title}</span>
+                                {choices.find(c => c.id === id)?.label}: {counts(kind, id)}
+                                <Link href={`/event/${kind === "event" ? id : eventId}`} target="_blank" className="ml-2 text-xs text-blue-600 hover:underline">大会詳細</Link>
+                            </p>
+                        ))}
+                        {fromId != null && <p className="text-xs">消す方に付いているものは残す方へ付け替えます。同じ日の開催回・同じ距離と名前の種目は、さらにまとめます。</p>}
+                    </div>
                 )}
                 <button onClick={merge} disabled={busy || fromId == null || intoId == null} className="self-start px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50">
                     {busy ? "まとめています..." : "まとめる（元に戻せません）"}

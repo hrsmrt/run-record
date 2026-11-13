@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { PREFECTURE_ORDER, compareByPrefecture } from "@/lib/prefectures"
 import { useUnsavedWarning } from "@/lib/use-unsaved-warning"
+import { AdminEventFilterNote } from "@/components/AdminEventFilterNote"
 
 type Event = {
     id: number
@@ -15,7 +16,8 @@ type Event = {
 
 type NewEvent = Omit<Event, "id">
 
-export function EditEventsClient() {
+// onlyEventId: その大会の行だけ出す（大会詳細の管理者メニューから）
+export function EditEventsClient({ onlyEventId }: { onlyEventId?: number }) {
     const [events, setEvents] = useState<Event[]>([])
     const [newRow, setNewRow] = useState<NewEvent>({ name: "", url: null, type: "", prefecture: null })
     const [message, setMessage] = useState("")
@@ -91,11 +93,13 @@ export function EditEventsClient() {
                 変更を保存{dirtyIds.size > 0 && `（${dirtyIds.size}件）`}
             </button>
             {message && <p className="mb-2 text-sm">{message}</p>}
+            {onlyEventId != null && <AdminEventFilterNote eventId={onlyEventId} eventName={events.find(e => e.id === onlyEventId)?.name} basePath="/event/edit-events" />}
 
             <div className="overflow-x-auto">
                 <table className="w-full table-auto text-left border-collapse text-sm">
                     <thead>
                         <tr className="border-b">
+                            <th className="px-2 py-1">ID</th>
                             <th className="px-2 py-1">大会名</th>
                             <th className="px-2 py-1">URL</th>
                             <th className="px-2 py-1">種別</th>
@@ -104,8 +108,11 @@ export function EditEventsClient() {
                         </tr>
                     </thead>
                     <tbody>
-                        {events.map(ev => (
+                        {events.filter(ev => onlyEventId == null || ev.id === onlyEventId).map(ev => (
                             <tr key={ev.id} className={`border-b ${dirtyIds.has(ev.id) ? "bg-yellow-50" : ""}`}>
+                                <td className="px-2 py-1 text-xs text-gray-500">
+                                    <a href={`/event/${ev.id}`} className="hover:underline">{ev.id}</a>
+                                </td>
                                 <td className="px-2 py-1">
                                     <input
                                         className="w-full px-1 border rounded"

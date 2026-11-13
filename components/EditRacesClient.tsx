@@ -4,9 +4,11 @@ import { Fragment, useState, useEffect, useRef } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { useUnsavedWarning } from "@/lib/use-unsaved-warning"
 import { RaceDivisionsEditor } from "@/components/RaceDivisionsEditor"
+import { AdminEventFilterNote } from "@/components/AdminEventFilterNote"
 
 type EditionOption = {
     id: number
+    event_id: number
     held_on: string | null
     events: { name: string }
 }
@@ -54,7 +56,8 @@ const PRESETS: { label: string; name: string; distance_km: number }[] = [
     { label: "カスタム",       name: "",               distance_km: 0        },
 ]
 
-export function EditRacesClient() {
+// onlyEventId: その大会の種目だけ出し、追加の開催回もその大会のものから選ぶ（大会詳細の管理者メニューから）
+export function EditRacesClient({ onlyEventId }: { onlyEventId?: number }) {
     const [races, setRaces] = useState<Race[]>([])
     const [editions, setEditions] = useState<EditionOption[]>([])
     const [newRow, setNewRow] = useState<NewRace>({
@@ -95,7 +98,7 @@ export function EditRacesClient() {
             const [{ data: raceData, error: raceError }, { data: edData, error: edError }] = await Promise.all([
                 supabase.from("races").select("*").order("event_edition_id"),
                 supabase.from("event_editions")
-                    .select("id, held_on, events(name)")
+                    .select("id, event_id, held_on, events(name)")
                     .order("held_on", { ascending: false }),
             ])
             const error = raceError ?? edError
@@ -105,6 +108,10 @@ export function EditRacesClient() {
         }
         fetch()
     }, [supabase])
+
+    // 絞り込み中は、その大会の開催回の種目（別の開催回へ付け替えた行も保存するまでは出す）
+    const eventEditionIds = new Set(editions.filter(ed => onlyEventId == null || ed.event_id === onlyEventId).map(ed => ed.id))
+    const shownRaces = races.filter(r => onlyEventId == null || eventEditionIds.has(r.event_edition_id) || dirtyIds.has(r.id))
 
     const handleSaveAll = async () => {
         const targets = races.filter(r => dirtyIds.has(r.id))
@@ -184,11 +191,13 @@ export function EditRacesClient() {
                 変更を保存{dirtyIds.size > 0 && `（${dirtyIds.size}件）`}
             </button>
             {message && <p className="mb-2 text-sm">{message}</p>}
+            {onlyEventId != null && <AdminEventFilterNote eventId={onlyEventId} eventName={editions.find(ed => ed.event_id === onlyEventId)?.events.name} basePath="/event/edit-races" />}
 
             <div className="overflow-x-auto">
                 <table className="table-auto text-left border-collapse text-sm whitespace-nowrap">
                     <thead>
                         <tr className="border-b">
+                            <th className="px-2 py-1">ID</th>
                             <th className="px-2 py-1">開催回</th>
                             <th className="px-2 py-1">種目</th>
                             <th className="px-2 py-1">種目名</th>
@@ -207,9 +216,10 @@ export function EditRacesClient() {
                         </tr>
                     </thead>
                     <tbody>
-                        {races.map(r => (
+                        {shownRaces.map(r => (
                             <Fragment key={r.id}>
                             <tr className={`border-b ${dirtyIds.has(r.id) ? "bg-yellow-50" : ""}`}>
+                                <td className="px-2 py-1 text-xs text-gray-500">{r.id}</td>
                                 <td className="px-2 py-1">
                                     <select
                                         value={r.event_edition_id}
@@ -300,7 +310,7 @@ export function EditRacesClient() {
                             </tr>
                             {openDivisionsId === r.id && (
                                 <tr className="border-b bg-gray-50">
-                                    <td colSpan={16} className="px-2 py-2">
+                                    <td colSpan={17} className="px-2 py-2">
                                         <p className="text-xs font-semibold mb-1">部門ごとのエントリー数（保存は行ごと）</p>
                                         <RaceDivisionsEditor raceId={r.id} />
                                     </td>
@@ -329,7 +339,7 @@ export function EditRacesClient() {
                         {showDropdown && (
                             <ul className="absolute z-10 bg-white border rounded shadow w-full max-h-48 overflow-y-auto text-sm">
                                 {editions
-                                    .filter(ed => editionLabel(ed).includes(editionSearch))
+                                    .filter(ed => (onlyEventId == null || ed.event_id === onlyEventId) && editionLabel(ed).includes(editionSearch))
                                     .map(ed => (
                                         <li key={ed.id}
                                             className="px-2 py-1 cursor-pointer hover:bg-gray-100"
