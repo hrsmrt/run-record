@@ -130,22 +130,32 @@ export function entryStateOf(races: CatalogRaceRow[], now = Date.now()): EntrySt
     return null
 }
 
-const WEEKS_52_MS = 364 * 86400000
-// 前回の開催日から推定するのは、前回がこの日数以内のときだけ（何年も開かれていない大会は推定しない）
-const ESTIMATE_MAX_GAP_DAYS = 800
-const isoOf = (t: number) => { const d = new Date(t); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}` }
+const pad2 = (n: number) => String(n).padStart(2, "0")
 
-// 次の開催日（今日以降の登録済みの開催回。なければ前回の52週後ずつ進めた推定日）
-export function nextDateOf(editions: CatalogEditionRow[], today = todayStr()): { date: string; estimated: boolean; editionId: number | null } | null {
+// その年・月の第 n の weekday 曜日（第5がない月は最後のもの）
+function nthWeekdayOf(y: number, m: number, weekday: number, n: number) {
+    let d = 1 + (weekday - new Date(y, m - 1, 1).getDay() + 7) % 7 + (n - 1) * 7
+    const last = new Date(y, m, 0).getDate()
+    while (d > last) d -= 7
+    return `${y}-${pad2(m)}-${pad2(d)}`
+}
+
+// 次の開催日（今日以降の登録済みの開催回。なければ前回と同じ月の同じ第◯◯曜日の推定日）。
+// 前回がどれだけ古くても推定する（52週ずつ進めると1年に1〜2日ずつ早まるため、月と第◯◯曜日でそろえる）。
+// from は推定のもとにした前回の開催日。開催日の入った回が1つもなければ null
+export function nextDateOf(editions: CatalogEditionRow[], today = todayStr()): { date: string; estimated: boolean; editionId: number | null; from?: string } | null {
     const dated = editions.filter(e => e.held_on).sort((a, b) => a.held_on!.localeCompare(b.held_on!))
     const upcoming = dated.find(e => e.held_on! >= today)
     if (upcoming) return { date: upcoming.held_on!, estimated: false, editionId: upcoming.id }
     const latest = dated.at(-1)
     if (!latest) return null
-    let t = new Date(`${latest.held_on}T00:00:00`).getTime()
-    if (Date.now() - t > ESTIMATE_MAX_GAP_DAYS * 86400000) return null
-    while (isoOf(t) < today) t += WEEKS_52_MS
-    return { date: isoOf(t), estimated: true, editionId: null }
+    const from = latest.held_on!
+    const base = new Date(`${from}T00:00:00`)
+    const [month, weekday, n] = [base.getMonth() + 1, base.getDay(), Math.ceil(base.getDate() / 7)]
+    let y = base.getFullYear() + 1
+    let date = nthWeekdayOf(y, month, weekday, n)
+    while (date < today) date = nthWeekdayOf(++y, month, weekday, n)
+    return { date, estimated: true, editionId: null, from }
 }
 
 // ---------------------------------------------------------------------

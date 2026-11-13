@@ -77,6 +77,8 @@ export function EventListClient() {
                                             {next ? (
                                                 <span className={`font-mono text-xs ${next.estimated ? "text-orange-600" : ""}`}>
                                                     次回 {formatYmd(next.date)}（{weekdayOf(next.date)}）{next.estimated && "推定"}
+                                                    {/* 前々年以前の回からの推定は、もとにした年を添える */}
+                                                    {next.from && Number(next.from.substring(0, 4)) < Number(next.date.substring(0, 4)) - 1 && `・前回${next.from.substring(0, 4)}年`}
                                                 </span>
                                             ) : <span className="text-xs text-gray-500">開催日の登録なし</span>}
                                             <EntryStateText state={entry} />
