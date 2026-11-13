@@ -5,7 +5,7 @@ import { PREFECTURE_ORDER, prefOrder } from "@/lib/prefectures"
 import { normalizeEventName } from "@/components/RacePicker"
 import { normalizeKana } from "@/lib/members"
 import { todayStr } from "@/lib/practices"
-import type { EntryDifficulty, EntryMethod } from "@/lib/event-info"
+import type { EntryDifficulty, EntryMethod, EventSchedule, HeldStatus } from "@/lib/event-info"
 import type { PlanStatus } from "@/lib/race-plans"
 
 export type CatalogEventRow = {
@@ -15,6 +15,8 @@ export type CatalogEventRow = {
     prefecture: string | null
     entry_method: EntryMethod | null
     entry_difficulty: EntryDifficulty | null
+    held_status: HeldStatus
+    interval_years: number
 }
 // name: 当時の大会名（改名した大会の昔の回。NULL なら大会の名前と同じ）
 export type CatalogEditionRow = { id: number; event_id: number; held_on: string | null; edition_number: number | null; name: string | null }
@@ -48,7 +50,7 @@ export type EventCatalog = {
 export async function loadEventCatalog(supabase: SupabaseClient): Promise<EventCatalog> {
     const { data: { user } } = await supabase.auth.getUser()
     const [events, editions, races, plans, results, notes, mine] = await Promise.all([
-        fetchAll<CatalogEventRow>((f, t) => supabase.from("events").select("id, name, type, prefecture, entry_method, entry_difficulty").order("id").range(f, t)),
+        fetchAll<CatalogEventRow>((f, t) => supabase.from("events").select("id, name, type, prefecture, entry_method, entry_difficulty, held_status, interval_years").order("id").range(f, t)),
         fetchAll<CatalogEditionRow>((f, t) => supabase.from("event_editions").select("id, event_id, held_on, edition_number, name").order("id").range(f, t)),
         fetchAll<CatalogRaceRow>((f, t) => supabase.from("races").select("id, event_edition_id, name, distance_km, entry_start_at, entry_end_at, jaaf_certified").order("id").range(f, t)),
         fetchAll<PlanRow>((f, t) => supabase.from("public_race_plans").select("event_edition_id, status, recruiting, is_me").order("event_edition_id").range(f, t)),
@@ -142,19 +144,21 @@ function nthWeekdayOf(y: number, m: number, weekday: number, n: number) {
 
 // 次の開催日（今日以降の登録済みの開催回。なければ前回と同じ月の同じ第◯◯曜日の推定日）。
 // 前回がどれだけ古くても推定する（52週ずつ進めると1年に1〜2日ずつ早まるため、月と第◯◯曜日でそろえる）。
+// 隔年などは前回の年に間隔の年数ずつ足す。休止中・終了の大会は推定しない（登録済みのこれからの回は出す）。
 // from は推定のもとにした前回の開催日。開催日の入った回が1つもなければ null
-export function nextDateOf(editions: CatalogEditionRow[], today = todayStr()): { date: string; estimated: boolean; editionId: number | null; from?: string } | null {
+export function nextDateOf(editions: CatalogEditionRow[], schedule?: EventSchedule, today = todayStr()): { date: string; estimated: boolean; editionId: number | null; from?: string } | null {
     const dated = editions.filter(e => e.held_on).sort((a, b) => a.held_on!.localeCompare(b.held_on!))
     const upcoming = dated.find(e => e.held_on! >= today)
     if (upcoming) return { date: upcoming.held_on!, estimated: false, editionId: upcoming.id }
     const latest = dated.at(-1)
-    if (!latest) return null
+    if (!latest || (schedule && schedule.held_status !== "active")) return null
+    const step = schedule?.interval_years ?? 1
     const from = latest.held_on!
     const base = new Date(`${from}T00:00:00`)
     const [month, weekday, n] = [base.getMonth() + 1, base.getDay(), Math.ceil(base.getDate() / 7)]
-    let y = base.getFullYear() + 1
+    let y = base.getFullYear() + step
     let date = nthWeekdayOf(y, month, weekday, n)
-    while (date < today) date = nthWeekdayOf(++y, month, weekday, n)
+    while (date < today) date = nthWeekdayOf(y += step, month, weekday, n)
     return { date, estimated: true, editionId: null, from }
 }
 
@@ -174,8 +178,9 @@ export type EventFilter = {
     entry: string         // open（受付中）/ soon（これから受付）
     jaaf: string          // "1" なら陸連公認の種目がある
     member: string        // plans / recruit / ran / mine
+    live: string          // "1" なら終了・休止中の大会を除く
 }
-export const FILTER_KEYS: (keyof EventFilter)[] = ["q", "region", "pref", "type", "dist", "mf", "mt", "method", "diff", "entry", "jaaf", "member"]
+export const FILTER_KEYS: (keyof EventFilter)[] = ["q", "region", "pref", "type", "dist", "mf", "mt", "method", "diff", "entry", "jaaf", "member", "live"]
 export const readFilter = (params: URLSearchParams): EventFilter =>
     Object.fromEntries(FILTER_KEYS.map(k => [k, params.get(k) ?? ""])) as EventFilter
 
@@ -207,6 +212,7 @@ function matchEventBase(c: EventCatalog, ev: CatalogEventRow, f: EventFilter) {
     if (f.diff && ev.entry_difficulty !== f.diff) return false
     if (f.member === "ran" && !c.eventResults.get(ev.id)) return false
     if (f.member === "mine" && !c.myEvents.has(ev.id)) return false
+    if (f.live && ev.held_status !== "active") return false
     return true
 }
 
@@ -243,7 +249,7 @@ export function matchEvent(c: EventCatalog, ev: CatalogEventRow, f: EventFilter,
     if (!matchRaces(racesOfEvent(c, ev.id), f)) return false
     const eds = c.editions.filter(e => e.event_id === ev.id)
     if (f.mf || f.mt) {
-        const next = nextDateOf(eds, today)
+        const next = nextDateOf(eds, ev, today)
         if (!next || !inMonths(next.date, f)) return false
     }
     const upcoming = eds.filter(e => e.held_on && e.held_on >= today)

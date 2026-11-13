@@ -21,6 +21,7 @@ import type { EventNote } from "@/lib/event-info"
 import type { RacePlan } from "@/lib/race-plans"
 import { todayStr } from "@/lib/practices"
 import { EventAdminPanel } from "@/components/EventAdminPanel"
+import { EventScheduleEditor, type ScheduleInfoRow } from "@/components/EventScheduleEditor"
 
 type Race = {
     id: number
@@ -120,7 +121,7 @@ export default function EventDetailPage() {
     // 開催回に結び付いた掲示板の話題
     const [threads, setThreads] = useState<EditionThread[]>([])
     // 例年のエントリー方式・難易度と、大会のメモ（どちらも変えるたびに読み直す）
-    const [entryInfo, setEntryInfo] = useState<EntryInfoRow | null>(null)
+    const [entryInfo, setEntryInfo] = useState<(EntryInfoRow & ScheduleInfoRow) | null>(null)
     const [notes, setNotes] = useState<EventNote[]>([])
     const [infoReload, setInfoReload] = useState(0)
     // メンバーが追加した大会・開催回の、追加した人の名前（"event:ID" / "edition:ID" → 名前）
@@ -251,8 +252,8 @@ export default function EventDetailPage() {
     useEffect(() => {
         if (!event) return
         const supabase = createClient()
-        supabase.from("public_event_entry_info").select("entry_method, entry_difficulty, updated_by_name, updated_at").eq("event_id", event.id).maybeSingle()
-            .then(({ data }) => setEntryInfo((data as EntryInfoRow | null) ?? null))
+        supabase.from("public_event_entry_info").select("entry_method, entry_difficulty, updated_by_name, updated_at, held_status, interval_years, schedule_updated_by_name, schedule_updated_at").eq("event_id", event.id).maybeSingle()
+            .then(({ data }) => setEntryInfo((data as (EntryInfoRow & ScheduleInfoRow) | null) ?? null))
         supabase.from("public_event_notes").select("*").eq("event_id", event.id)
             .then(({ data }) => setNotes((data ?? []) as EventNote[]))
     }, [event, infoReload])
@@ -310,6 +311,7 @@ export default function EventDetailPage() {
                                     </a>
                                 ) : "なし"}
                             </dd>
+                            <EventScheduleEditor eventId={event.id} info={entryInfo} canEdit={canWrite} onChanged={() => setInfoReload(n => n + 1)} />
                             <EventEntryInfoEditor eventId={event.id} info={entryInfo} canEdit={canWrite} onChanged={() => setInfoReload(n => n + 1)} />
                         </dl>
 

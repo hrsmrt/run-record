@@ -7,7 +7,8 @@ import { normalizeKana } from "@/lib/members"
 import { formatDistance } from "@/lib/splits"
 import type { RaceOption } from "@/components/RaceInput"
 
-export type CatalogEvent = { id: number; name: string; type: string; prefecture: string | null }
+// held_status・interval_years: 休止中・終了の大会は推定の候補に出さない、隔年などは間隔の年数ごとに推定する
+export type CatalogEvent = { id: number; name: string; type: string; prefecture: string | null; held_status?: string; interval_years?: number }
 // name: 当時の大会名（改名した大会の昔の回。NULL なら大会の名前と同じ）
 export type CatalogEdition = { id: number; event_id: number; held_on: string | null; edition_number: number | null; name: string | null }
 export type CatalogRace = { id: number; event_edition_id: number; name: string; distance_km: number }
@@ -54,7 +55,7 @@ export function useCatalog() {
     const reload = useCallback(async () => {
         const supabase = createClient()
         const [ev, ed, ra] = await Promise.all([
-            supabase.from("events").select("id, name, type, prefecture"),
+            supabase.from("events").select("id, name, type, prefecture, held_status, interval_years"),
             supabase.from("event_editions").select("id, event_id, held_on, edition_number, name"),
             supabase.from("races").select("id, event_edition_id, name, distance_km"),
         ])
@@ -114,18 +115,21 @@ export function RacePicker({ value, onChange, allowCreate = true }: {
         byEvent.forEach((dates, id) => {
             const real = dates.filter(d => d <= aheadTo).sort().at(-1)
             if (real) m.set(id, { date: real, estimated: false })
-            // 前回の開催日から52週ずつ進め、推定の範囲に入れば候補（今年の分が登録済みなら出さない）
+            // 前回の開催日から52週（隔年などはその倍）ずつ進め、推定の範囲に入れば候補（今年の分が登録済みなら出さない）
+            const ev = events?.find(e => e.id === id)
+            if (ev?.held_status && ev.held_status !== "active") return
+            const step = WEEKS_52_MS * (ev?.interval_years ?? 1)
             const latest = dates.sort().at(-1)!
-            let t = new Date(`${latest}T00:00:00`).getTime() + WEEKS_52_MS
+            let t = new Date(`${latest}T00:00:00`).getTime() + step
             while (isoDate(new Date(t)) <= aheadTo) {
                 const est = isoDate(new Date(t))
                 const registered = dates.some(d => Math.abs(new Date(`${d}T00:00:00`).getTime() - t) <= SAME_CYCLE_DAYS * DAY_MS)
                 if (est >= estimateFrom && !registered && (!real || est > real)) m.set(id, { date: est, estimated: true, from: latest })
-                t += WEEKS_52_MS
+                t += step
             }
         })
         return m
-    }, [editions, aheadTo, estimateFrom])
+    }, [events, editions, aheadTo, estimateFrom])
     // 大会ごとの旧称（開催回の当時の名前）。検索と「似た名前」の判定に含める
     const aliases = useMemo(() => {
         const m = new Map<number, string[]>()

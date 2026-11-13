@@ -11,6 +11,7 @@ import { todayStr } from "@/lib/practices"
 import { EventFilterBar, EventTabs, useEventFilters } from "@/components/EventFilters"
 import { DistanceChips, EntryStateText, PlanSummary } from "@/components/EventRowParts"
 import { EntryInfoBadge } from "@/components/EntryInfoBadge"
+import { HELD_STATUS_LABELS, intervalShort } from "@/lib/event-info"
 
 const SORTS: [string, string][] = [["next", "次の開催日が近い順"], ["name", "名前順"], ["pref", "都道府県順"], ["popular", "メンバーの出場が多い順"]]
 const PAGE = 100
@@ -30,11 +31,12 @@ export function EventListClient() {
         const today = todayStr()
         const list = catalog.events.filter(ev => matchEvent(catalog, ev, f.filter, today)).map(ev => {
             const eds = catalog.editions.filter(e => e.event_id === ev.id)
-            const next = nextDateOf(eds, today)
+            const next = nextDateOf(eds, ev, today)
             // 距離は次の回（なければ一番新しい回）の種目で出す（昔だけあった距離を出さないため）
             const shownEdition = next?.editionId ?? [...eds].sort((a, b) => (b.held_on ?? "").localeCompare(a.held_on ?? ""))[0]?.id
             const races = catalog.races.filter(r => r.event_edition_id === shownEdition)
-            return { ev, next, races, entry: next?.editionId ? entryStateOf(races) : null, plans: next?.editionId ? catalog.plans.get(next.editionId) : undefined }
+            const latest = eds.map(e => e.held_on).filter((d): d is string => !!d).sort().at(-1)
+            return { ev, next, latest, races, entry: next?.editionId ? entryStateOf(races) : null, plans: next?.editionId ? catalog.plans.get(next.editionId) : undefined }
         })
         const byName = (a: { ev: CatalogEventRow }, b: { ev: CatalogEventRow }) => a.ev.name.localeCompare(b.ev.name, "ja")
         if (sort === "name") list.sort(byName)
@@ -61,7 +63,7 @@ export function EventListClient() {
                         </EventFilterBar>
                         <p className="text-sm mb-1">{rows.length}大会</p>
                         <ul className="flex flex-col gap-1">
-                            {rows.slice(0, shown).map(({ ev, next, races, entry, plans }) => {
+                            {rows.slice(0, shown).map(({ ev, next, latest, races, entry, plans }) => {
                                 const ran = catalog.eventResults.get(ev.id) ?? 0
                                 const notes = catalog.noteCounts.get(ev.id) ?? 0
                                 return (
@@ -80,7 +82,13 @@ export function EventListClient() {
                                                     {/* 前々年以前の回からの推定は、もとにした年を添える */}
                                                     {next.from && Number(next.from.substring(0, 4)) < Number(next.date.substring(0, 4)) - 1 && `・前回${next.from.substring(0, 4)}年`}
                                                 </span>
+                                            ) : ev.held_status !== "active" ? (
+                                                // 終了・休止中は推定しない（次の開催日が近い順では一番下）
+                                                <span className="text-xs text-gray-500">
+                                                    {HELD_STATUS_LABELS[ev.held_status]}{latest && `（前回 ${formatYmd(latest)}）`}
+                                                </span>
                                             ) : <span className="text-xs text-gray-500">開催日の登録なし</span>}
+                                            {ev.interval_years > 1 && ev.held_status === "active" && <span className="text-xs px-1 rounded bg-gray-100 text-gray-700">{intervalShort(ev.interval_years)}</span>}
                                             <EntryStateText state={entry} />
                                             <EntryInfoBadge info={ev} />
                                             <PlanSummary plans={plans} />

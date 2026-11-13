@@ -101,7 +101,7 @@ export function EventFilterBar({ catalog, filter, setParams, query, setQuery, cl
         </select>
     )
     // スマホでは、よく使う項目以外を「条件を増やす」にしまう
-    const advancedCount = (["type", "mf", "mt", "method", "diff", "entry", "jaaf", "member"] as const).filter(k => filter[k] !== "").length
+    const advancedCount = (["type", "mf", "mt", "method", "diff", "entry", "jaaf", "member", "live"] as const).filter(k => filter[k] !== "").length
 
     return (
         <div className="flex flex-col gap-2 bg-white text-black border rounded p-2 mb-3 text-sm">
@@ -134,6 +134,10 @@ export function EventFilterBar({ catalog, filter, setParams, query, setQuery, cl
                 <label className="flex items-center gap-1">
                     <input type="checkbox" checked={filter.jaaf === "1"} onChange={e => setParams({ jaaf: e.target.checked ? "1" : "" })} />
                     陸連公認
+                </label>
+                <label className="flex items-center gap-1">
+                    <input type="checkbox" checked={filter.live === "1"} onChange={e => setParams({ live: e.target.checked ? "1" : "" })} />
+                    終了・休止中を除く
                 </label>
             </div>
             {(children || active) && (

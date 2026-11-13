@@ -31,6 +31,15 @@ export const ENTRY_DIFFICULTY_STYLES: Record<EntryDifficulty, string> = {
     instant: "bg-red-100 text-red-800",
 }
 
+// 開催の状況と間隔（sql/2026-11-14_event_schedule.sql）。休止中・終了は次の開催日を推定しない、間隔は推定で前回の年に足す年数
+export type HeldStatus = "active" | "suspended" | "ended"
+export const HELD_STATUSES: HeldStatus[] = ["active", "suspended", "ended"]
+export const HELD_STATUS_LABELS: Record<HeldStatus, string> = { active: "開催中", suspended: "休止中", ended: "終了" }
+export const INTERVAL_YEARS = [1, 2, 3, 4] as const
+export const INTERVAL_LABELS: Record<number, string> = { 1: "毎年", 2: "隔年（2年ごと）", 3: "3年ごと", 4: "4年ごと" }
+export const intervalShort = (n: number) => n === 2 ? "隔年" : `${n}年ごと`
+export type EventSchedule = { held_status: HeldStatus; interval_years: number }
+
 export type EventEntryInfo = { entry_method: EntryMethod | null; entry_difficulty: EntryDifficulty | null }
 
 // 一覧に出す印の文字（"抽選・激戦" など。どちらも未設定なら null）
