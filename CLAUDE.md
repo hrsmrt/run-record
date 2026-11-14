@@ -155,6 +155,8 @@
   - 一覧の「例年 抽選・激戦」の印は `components/EntryInfoBadge.tsx`（ホームの募集・`/plans`・カレンダー）。大会詳細の選択欄は `components/EventEntryInfoEditor.tsx`。ラベルは `lib/event-info.ts`
   - 大会のメモ `event_notes`（大会ごとに何件でも。項目 `categories` は1つ以上の配列で entry / access / raceday / course / prize / sightseeing / other（`sql/2026-11-12_event_notes_tags.sql` で1つから複数に変更）、何年の話か `edition_id` は任意でその大会の開催回に限る（`event_note_edition_ok()`））。書くのはメンバー全員、直す・消すのは書いた本人と管理者。表示は `public_event_notes`・`components/EventNotes.tsx`（新しい順に1列、項目の印と絞り込みボタン）。開催が終わった大会・記録のない大会にも書ける
   - 種目のスタート時刻 `races.start_time`・陸連公認 `races.jaaf_certified`（NULL は不明）。メンバーなら誰でも `set_race_day_info()` で変えられる。大会詳細の種目の表に列、入力は `components/RaceDayInfoEditor.tsx`
+  - 種目のエントリー期間・参加費・定員（`sql/2026-11-14_race_entry_info.sql`）もメンバーなら誰でも `set_race_entry_info()` で変えられる（入力は同じ `RaceDayInfoEditor` の「種目の情報を入力」）。最後に変えた人・日時は `races.entry_info_updated_by`・`entry_info_updated_at`、名前は `admin_race_entry_updates`（管理者にだけ行を返す）で大会詳細の表に「〇〇さんが 11/14 に設定」
+  - 大会詳細の「次回の開催回を追加」（`components/NextEditionCreator.tsx`、これからの回がないときメンバーに出す）: 開催日は推定日を入れておき、`add_next_edition()`（呼んだ人の権限）で開催回を作って前回の種目の名前・距離・制限時間・高低差・スタート時刻・陸連公認を写す
   - 開催の状況と間隔（`sql/2026-11-14_event_schedule.sql`）: `events.held_status`（active 開催中 / suspended 休止中 / ended 終了）・`interval_years`（1〜4、隔年は2）。メンバーなら誰でも `set_event_schedule_info()` で変えられ、最後に変えた人は `public_event_entry_info` の末尾の列。大会詳細の選択欄は `components/EventScheduleEditor.tsx`。休止中・終了は大会一覧（`nextDateOf`）と `RacePicker` の推定に出さない（登録済みのこれからの回は出す）。間隔は推定で前回の年に足す（`RacePicker` は52週×間隔）。大会をまとめるときは残す方の値のまま
   - 大会レポート（開催回ごとの個人の感想）とは別。`admin_merge_events()`・`admin_merge_editions()` でメモを付け替え、方式・難易度はまとめる先が未入力なら引き継ぐ
 - **大会レポート**: `race_reports`（開催回ごと、感想・観光の文章のみ、改行とリンク）、表示は `public_race_reports`
@@ -177,11 +179,13 @@
 #### DB
 - `2026-11-14_catalog_usage.sql` - `admin_catalog_usage()`（大会・開催回・種目ごとに付いているものの件数）
 - `2026-11-14_event_schedule.sql` - 大会の開催の状況（開催中・休止中・終了）と間隔（毎年・隔年など）
+- `2026-11-14_race_entry_info.sql` - 種目のエントリー期間・参加費・定員をメンバーが入れる関数と最後に変えた人、次回の開催回の追加 `add_next_edition()`
 
 #### アプリ
 - 大会一覧の次の開催日の推定を、前回と同じ月の同じ第◯◯曜日に（前回がどれだけ古くても出す）
 - 大会詳細に管理者メニュー（ID・件数・似た名前の大会・管理画面への入口・削除）、管理画面を `?event=` で1つの大会に絞る、重複をまとめる画面で両方の件数を見比べる
 - 大会の開催の状況と間隔（大会詳細で誰でも選べる、推定に反映、大会一覧の表示と絞り込み）
+- 種目のエントリー期間・参加費・定員をメンバーなら誰でも入力、大会詳細から次回の開催回を追加（前回の種目を写す）
 
 ### 2026-11-12: 個人の大会予定、参加者募集中の大会
 

@@ -22,6 +22,7 @@ import type { RacePlan } from "@/lib/race-plans"
 import { todayStr } from "@/lib/practices"
 import { EventAdminPanel } from "@/components/EventAdminPanel"
 import { EventScheduleEditor, type ScheduleInfoRow } from "@/components/EventScheduleEditor"
+import { NextEditionCreator } from "@/components/NextEditionCreator"
 
 type Race = {
     id: number
@@ -126,6 +127,11 @@ export default function EventDetailPage() {
     const [infoReload, setInfoReload] = useState(0)
     // メンバーが追加した大会・開催回の、追加した人の名前（"event:ID" / "edition:ID" → 名前）
     const [creators, setCreators] = useState<Map<string, string>>(new Map())
+    // 次回の開催回を追加したら読み直す
+    const [eventReload, setEventReload] = useState(0)
+    // 種目のエントリー期間などを誰がいつ入れたか（管理者にだけ行が返る。種目ID → 名前と日時）
+    const [entryUpdates, setEntryUpdates] = useState<Map<number, { name: string | null; at: string }>>(new Map())
+    const [entryUpdatesReload, setEntryUpdatesReload] = useState(0)
 
     useEffect(() => {
         const fetchEvent = async () => {
@@ -196,7 +202,14 @@ export default function EventDetailPage() {
             setSplits(byResult)
         }
         fetchEvent()
-    }, [id])
+    }, [id, eventReload])
+
+    useEffect(() => {
+        const raceIds = event?.event_editions.flatMap(ed => ed.races.map(r => r.id)) ?? []
+        if (raceIds.length === 0) return
+        createClient().from("admin_race_entry_updates").select("race_id, updated_by_name, updated_at").in("race_id", raceIds)
+            .then(({ data }) => setEntryUpdates(new Map((data ?? []).map(u => [u.race_id as number, { name: u.updated_by_name as string | null, at: u.updated_at as string }]))))
+    }, [event, entryUpdatesReload])
 
     // コースは登録・差し替えのたびに読み直す（routeReload を増やす）
     useEffect(() => {
@@ -327,6 +340,17 @@ export default function EventDetailPage() {
                         </div>
 
                         <h2 className="text-base font-bold mb-2">開催回</h2>
+                        {/* これからの回（開催日未定を含む）がなければ、次回を追加できる */}
+                        {canWrite && !event.event_editions.some(ed => !ed.held_on || ed.held_on >= todayStr()) && (
+                            <div className="mb-3 flex flex-col">
+                                <NextEditionCreator
+                                    eventId={event.id}
+                                    editions={event.event_editions}
+                                    schedule={entryInfo ? { held_status: entryInfo.held_status, interval_years: entryInfo.interval_years } : null}
+                                    onCreated={() => setEventReload(n => n + 1)}
+                                />
+                            </div>
+                        )}
                         {event.event_editions.length === 0 && (
                             <p className="text-sm">開催回はまだ登録されていません。</p>
                         )}
@@ -380,6 +404,11 @@ export default function EventDetailPage() {
                                                                 </td>
                                                                 <td className="px-1 md:px-3 py-0">
                                                                     {formatEntryPeriod(r.entry_start_at, r.entry_end_at)}
+                                                                    {entryUpdates.has(r.id) && (
+                                                                        <span className="ml-1 text-gray-500">
+                                                                            （{entryUpdates.get(r.id)!.name ?? "退会したメンバー"}さんが {new Date(entryUpdates.get(r.id)!.at).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" })} に設定）
+                                                                        </span>
+                                                                    )}
                                                                 </td>
                                                                 <td className="px-1 md:px-3 py-0">{formatEntrants(r)}</td>
                                                             </tr>
@@ -392,13 +421,16 @@ export default function EventDetailPage() {
                                     {canWrite && (
                                         <RaceDayInfoEditor
                                             races={ed.races}
-                                            onSaved={(raceId, startTime, jaafCertified) => setEvent(prev => prev && {
-                                                ...prev,
-                                                event_editions: prev.event_editions.map(e => ({
-                                                    ...e,
-                                                    races: e.races.map(r => r.id === raceId ? { ...r, start_time: startTime, jaaf_certified: jaafCertified } : r),
-                                                })),
-                                            })}
+                                            onSaved={(raceId, patch) => {
+                                                setEvent(prev => prev && {
+                                                    ...prev,
+                                                    event_editions: prev.event_editions.map(e => ({
+                                                        ...e,
+                                                        races: e.races.map(r => r.id === raceId ? { ...r, ...patch } : r),
+                                                    })),
+                                                })
+                                                setEntryUpdatesReload(n => n + 1)
+                                            }}
                                         />
                                     )}
                                     {(!ed.held_on || ed.held_on >= todayStr()) && (canWrite || plans.some(p => p.event_edition_id === ed.id)) && (
